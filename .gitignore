@@ -1,0 +1,85 @@
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# Database migrations (except initial)
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Static files
+/static/
+/assets/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Node.js (if using frontend tools)
+node_modules/
+npm-debug.log*
+
+# Docker (if using)
+docker-compose.override.yml
+.dockerignore
+
+# Celery
+celerybeat-schedule.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# SSL files
+*.key
+*.pem
+
+# Secret files
+secrets.py
+*.secret
+
+# Build/compiled files
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Project-specific (from your structure)
+config/settings/local.py
+config/settings/production.py
+requirements/*.txt
+!requirements/base.txt
+!requirements/dev.txt
+!requirements/prod.txt
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
