@@ -20,6 +20,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect, csrf_exempt
 from apps.utils.web_detection import is_web_client
 from apps.utils.decorators import conditional_csrf_protect
+import re  # Add this import
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ class RegisterView(APIView):
             logger.info(f"Registration attempt with data: {request.data}")
             
             serializer = UserRegisterSerializer(data=request.data)
+
+            logger.info(f"Registration attempt with serialized: {serializer.data}")
+            
             if not serializer.is_valid():
                 return error_response('Validation failed', serializer.errors)
             
@@ -83,6 +87,7 @@ class RegisterView(APIView):
         except ValidationError as e:
             return error_response('Validation error', str(e))
         except Exception as e:
+            logger.info(f"Registration error: {str(e)}")
             return error_response(
                 'Registration failed',
                 str(e) if settings.DEBUG else 'Internal server error',
@@ -309,18 +314,48 @@ class UserProfileView(APIView):
     def patch(self, request):
         try:
             user = request.user
-            allowed_fields = ['first_name', 'last_name', 'bio', 'birth_date']
+            allowed_fields = ['first_name', 'last_name', 'bio', 'birth_date', 'profile_picture']
             
             for field in allowed_fields:
                 if field in request.data:
-                    setattr(user, field, request.data[field])
+                    # Handle profile picture separately
+                    if field == 'profile_picture':
+                        value = request.data[field]
+                        if not value:  # Handle empty value
+                            continue
+                            
+                        # Validate UUID or CDN URL
+                        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                        value = str(value).strip('/')
+                        
+                        # Direct UUID
+                        if re.match(uuid_pattern, value):
+                            setattr(user, field, value)
+                            continue
+                            
+                        # CDN URL
+                        if 'ucarecdn.com' in value:
+                            uuid = value.split('ucarecdn.com/')[-1].strip('/')
+                            if re.match(uuid_pattern, uuid):
+                                setattr(user, field, uuid)
+                                continue
+                                
+                        raise ValidationError('Invalid profile picture format')
+                    else:
+                        setattr(user, field, request.data[field])
             
             user.save()
             return success_response('Profile updated successfully', {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'bio': user.bio,
-                'birth_date': user.birth_date
+                'birth_date': user.birth_date,
+                'profile_picture': user.profile_picture_url
             })
+        except ValidationError as e:
+            return error_response('Validation error', str(e), status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return error_response('Failed to update profile', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)

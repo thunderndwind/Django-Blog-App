@@ -3,6 +3,7 @@ import sys
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
+import dj_database_url  # Add this import
 
 load_dotenv()
 
@@ -18,6 +19,8 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '.pythonanywhere.com',  # Allow any subdomain on pythonanywhere
+    '.onrender.com',  # Add Render domain
+    os.getenv('RENDER_EXTERNAL_HOSTNAME', ''),  # Add this
 ]
 
 # Application definition
@@ -39,6 +42,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add this after security middleware
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -78,6 +82,13 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
+
+# Update DATABASE configuration for Render
+if 'DATABASE_URL' in os.environ:
+    DATABASES['default'] = dj_database_url.config(
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 
 # Cache (Redis)
 CACHES = {
@@ -147,6 +158,8 @@ USE_TZ = True
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 

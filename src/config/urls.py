@@ -18,14 +18,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from apps.users import urls as users_urls
 
 urlpatterns = [
     path('admin-secure-web/', admin.site.urls),
-    path('api/auth/', include('apps.users.urls')),
+    path('api/auth/', include(users_urls.auth_patterns)),  # Auth endpoints
     path('api-auth/', include('rest_framework.urls')),
     path('api/posts/', include('apps.posts.urls')),
     path('api/uploads/', include('apps.uploads.urls')),
-    path('api/users/', include('apps.users.urls')),
+    path('api/users/', include('apps.users.urls')),  # User endpoints
 ]
 
 if settings.DEBUG:
