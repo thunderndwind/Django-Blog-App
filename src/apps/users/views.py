@@ -48,8 +48,6 @@ class RegisterView(APIView):
             logger.info(f"Registration attempt with data: {request.data}")
             
             serializer = UserRegisterSerializer(data=request.data)
-
-            logger.info(f"Registration attempt with serialized: {serializer.data}")
             
             if not serializer.is_valid():
                 return error_response('Validation failed', serializer.errors)
