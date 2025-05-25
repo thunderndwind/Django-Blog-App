@@ -83,19 +83,28 @@ class CustomCsrfMiddleware(CsrfViewMiddleware):
             logger.info("Skipping CSRF for non-web client")
             return None
             
-        # For web clients, ensure CSRF token is present
-        csrf_token = request.headers.get('X-CSRFToken') or request.META.get('HTTP_X_CSRFTOKEN')
-        cookie_token = request.COOKIES.get('csrftoken')
+        # For web clients, check for CSRF token in multiple places
+        csrf_token = None
         
-        logger.info(f"CSRF tokens - header: {csrf_token[:10] if csrf_token else 'None'}, cookie: {cookie_token[:10] if cookie_token else 'None'}")
+        # 1. Check X-CSRF-Token header (preferred method for JS)
+        csrf_token = request.headers.get('X-CSRF-Token') or request.headers.get('X-CSRFToken')
         
+        # 2. Check standard Django CSRF header
         if not csrf_token:
-            # Check if token is in cookies
-            if cookie_token:
-                request.META['HTTP_X_CSRFTOKEN'] = cookie_token
-                logger.info("Using CSRF token from cookie")
-            else:
-                logger.warning("No CSRF token found in headers or cookies")
+            csrf_token = request.META.get('HTTP_X_CSRFTOKEN')
+        
+        # 3. Check cookies as fallback
+        if not csrf_token:
+            csrf_token = request.COOKIES.get('csrftoken')
+        
+        logger.info(f"CSRF token found: {csrf_token[:10] if csrf_token else 'None'}")
+        
+        # Set the token in META for Django's CSRF middleware
+        if csrf_token:
+            request.META['HTTP_X_CSRFTOKEN'] = csrf_token
+            logger.info("CSRF token set in request META")
+        else:
+            logger.warning("No CSRF token found in headers or cookies")
         
         try:
             return super().process_view(request, callback, callback_args, callback_kwargs)

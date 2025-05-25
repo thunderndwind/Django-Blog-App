@@ -1,12 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Landing</title>
-</head>
-<body>
-    <h1>API is running</h1>
-    <p>Please use the appropriate endpoints to interact with the API.</p>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>API Landing</title>
+    </head>
+    <body>
+        <h1>API is running</h1>
+        <p>Please use the appropriate endpoints to interact with the API.</p>
+
+        <h2>CSRF Token Usage for JavaScript</h2>
+        <p>For web clients, here's how to handle CSRF tokens:</p>
+
+        <script>
+            // Example: How to get and use CSRF tokens in JavaScript
+
+            // Function to get CSRF token from cookies
+            function getCSRFToken() {
+                const cookies = document.cookie.split(";");
+                for (let cookie of cookies) {
+                    const [name, value] = cookie.trim().split("=");
+                    if (name === "csrftoken") {
+                        return value;
+                    }
+                }
+                return null;
+            }
+
+            // Function to get CSRF token from API
+            async function fetchCSRFToken() {
+                try {
+                    const response = await fetch("/api/auth/csrf-token", {
+                        method: "GET",
+                        credentials: "include", // Important for cookies
+                    });
+                    const data = await response.json();
+                    return data.data.csrfToken;
+                } catch (error) {
+                    console.error("Failed to fetch CSRF token:", error);
+                    return null;
+                }
+            }
+
+            // Function to make authenticated requests with CSRF token
+            async function makeAuthenticatedRequest(url, options = {}) {
+                let csrfToken = getCSRFToken();
+
+                // If no token in cookies, fetch one
+                if (!csrfToken) {
+                    csrfToken = await fetchCSRFToken();
+                }
+
+                const headers = {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": csrfToken, // Include CSRF token in header
+                    ...options.headers,
+                };
+
+                return fetch(url, {
+                    ...options,
+                    headers,
+                    credentials: "include", // Include cookies
+                });
+            }
+
+            // Example usage:
+            // makeAuthenticatedRequest('/api/auth/login', {
+            //     method: 'POST',
+            //     body: JSON.stringify({
+            //         username: 'your_username',
+            //         password: 'your_password'
+            //     })
+            // });
+
+            console.log("CSRF Token Helper functions loaded");
+            console.log("Current CSRF token:", getCSRFToken());
+        </script>
+    </body>
 </html>

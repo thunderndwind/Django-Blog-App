@@ -11,20 +11,21 @@ from django.conf import settings
 import logging
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import JSONParser
-from apps.utils.responses import success_response, error_response
+from apps.utils.responses import success_response, error_response, create_response_with_csrf, get_csrf_token_for_js
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from django.middleware.csrf import CsrfViewMiddleware
+from django.middleware.csrf import CsrfViewMiddleware, get_token
 from django.utils.decorators import method_decorator
 from apps.utils.web_detection import is_web_client
-from apps.utils.decorators import conditional_csrf_protect
+from apps.utils.decorators import conditional_csrf_protect, ensure_csrf_token
 import re
 from django.middleware.csrf import get_token
 
 logger = logging.getLogger(__name__)
 
 @method_decorator(conditional_csrf_protect, name='dispatch')
+@method_decorator(ensure_csrf_token, name='dispatch')
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     parser_classes = (JSONParser,)
@@ -52,14 +53,16 @@ class RegisterView(APIView):
                 }
             }
             
-            response = success_response(
-                'Registration successful',
-                response_data,
-                status.HTTP_201_CREATED
-            )
-            
-            # Set auth token for web clients
             if is_web_client(request):
+                # Use the new response function that includes CSRF token
+                response = create_response_with_csrf(
+                    'Registration successful',
+                    response_data,
+                    status.HTTP_201_CREATED,
+                    request=request
+                )
+                
+                # Set auth token for web clients
                 response.set_cookie(
                     settings.SIMPLE_JWT['COOKIE_NAME'],
                     str(refresh.access_token),
@@ -69,6 +72,12 @@ class RegisterView(APIView):
                     samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
                     domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
                     path=settings.COOKIE_SETTINGS['path']
+                )
+            else:
+                response = success_response(
+                    'Registration successful',
+                    response_data,
+                    status.HTTP_201_CREATED
                 )
             
             return response
@@ -86,12 +95,18 @@ class RegisterView(APIView):
             )
 
 @method_decorator(conditional_csrf_protect, name='dispatch')
+@method_decorator(ensure_csrf_token, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
     parser_classes = (JSONParser,)
 
     def post(self, request):
         try:
+            logger.info(f"Login attempt from {request.headers.get('Origin', 'Unknown')} - User-Agent: {request.headers.get('User-Agent', 'Unknown')}")
+            logger.info(f"Is web client: {is_web_client(request)}")
+            logger.info(f"CSRF token in headers: {request.headers.get('X-CSRF-Token', 'None')}")
+            logger.info(f"CSRF token in cookies: {request.COOKIES.get('csrftoken', 'None')}")
+            
             if not request.content_type == 'application/json':
                 return error_response('Content-Type must be application/json')
 
@@ -119,7 +134,8 @@ class LoginView(APIView):
                 }
 
                 if is_web_client(request):
-                    response = success_response('Login successful', response_data)
+                    # Use the new response function that includes CSRF token
+                    response = create_response_with_csrf('Login successful', response_data, request=request)
                     
                     # Set auth tokens with consistent settings
                     logger.info(f"Setting cookies for web client - secure: {settings.SIMPLE_JWT['COOKIE_SECURE']}, samesite: {settings.SIMPLE_JWT['COOKIE_SAMESITE']}, domain: {settings.SIMPLE_JWT['COOKIE_DOMAIN']}")
@@ -186,6 +202,7 @@ class LogoutView(APIView):
             return error_response('Logout failed', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @method_decorator(conditional_csrf_protect, name='dispatch')
+@method_decorator(ensure_csrf_token, name='dispatch')
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -202,7 +219,12 @@ class MeView(APIView):
                 'bio': user.bio or '',
                 'birth_date': user.birth_date
             }
-            response = success_response('User details retrieved successfully', data)
+            
+            if is_web_client(request):
+                response = create_response_with_csrf('User details retrieved successfully', data, request=request)
+            else:
+                response = success_response('User details retrieved successfully', data)
+            
             return response
         except Exception as e:
             return error_response('Failed to retrieve user details', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -401,3 +423,34 @@ class CookieDebugView(APIView):
         }
         
         return success_response('Cookie debug info', debug_info)
+
+class GetCSRFTokenView(APIView):
+    """
+    Simple endpoint to get CSRF token for JavaScript access
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        if is_web_client(request):
+            csrf_token = get_csrf_token_for_js(request)
+            response = success_response('CSRF token retrieved', {'csrfToken': csrf_token})
+            
+            # Set CSRF token in cookie for automatic inclusion in future requests
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=3600 * 24 * 7,  # 7 days
+                secure=settings.CSRF_COOKIE_SECURE,
+                httponly=settings.CSRF_COOKIE_HTTPONLY,  # False for JS access
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                domain=settings.CSRF_COOKIE_DOMAIN,
+                path=settings.CSRF_COOKIE_PATH
+            )
+            
+            # Also include in response header
+            response['X-CSRFToken'] = csrf_token
+            
+            logger.info(f"CSRF token provided to web client: {csrf_token[:10]}...")
+            return response
+        else:
+            return success_response('CSRF token not required for API clients', {'csrfToken': None})
