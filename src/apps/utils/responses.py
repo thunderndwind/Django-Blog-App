@@ -20,3 +20,10 @@ def error_response(message, errors=None, status_code=status.HTTP_400_BAD_REQUEST
     if errors is not None:
         response_data.update({'errors': errors})
     return Response(response_data, status=status_code)
+
+def csrf_failure(request, reason=""):
+    return error_response(
+        message="CSRF verification failed",
+        errors=reason,
+        status_code=status.HTTP_403_FORBIDDEN
+    )

@@ -130,17 +130,20 @@ class LoginView(APIView, CSRFCheckMixin):
                 if is_web_client(request):
                     response = success_response('Login successful', response_data)
                     
-                    # Set CSRF token with proper settings
+                    # Set CSRF token properly
                     csrf_token = get_token(request)
                     response.set_cookie(
                         'csrftoken',
                         csrf_token,
-                        max_age=3600 * 24 * 7,
-                        **{k: v for k, v in settings.COOKIE_SETTINGS.items() if k != 'httponly'}
+                        max_age=3600 * 24 * 7,  # 7 days
+                        secure=settings.COOKIE_SETTINGS['secure'],
+                        samesite=settings.COOKIE_SETTINGS['samesite'],
+                        domain=settings.COOKIE_SETTINGS['domain'],
+                        path=settings.COOKIE_SETTINGS['path']
                     )
                     response['X-CSRFToken'] = csrf_token
                     
-                    # Set auth cookies with proper settings
+                    # Set auth tokens
                     response.set_cookie(
                         'access_token',
                         str(refresh.access_token),
