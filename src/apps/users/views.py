@@ -129,35 +129,29 @@ class LoginView(APIView, CSRFCheckMixin):
 
                 if is_web_client(request):
                     response = success_response('Login successful', response_data)
-                    # Set CSRF token for web clients
+                    
+                    # Set CSRF token with proper settings
                     csrf_token = get_token(request)
                     response.set_cookie(
                         'csrftoken',
                         csrf_token,
-                        max_age=3600 * 24 * 7,  # 7 days
-                        samesite='Lax',
-                        secure=False  # Set to True in production
+                        max_age=3600 * 24 * 7,
+                        **{k: v for k, v in settings.COOKIE_SETTINGS.items() if k != 'httponly'}
                     )
                     response['X-CSRFToken'] = csrf_token
                     
-                    # Set auth tokens
+                    # Set auth cookies with proper settings
                     response.set_cookie(
                         'access_token',
                         str(refresh.access_token),
                         max_age=3600,
-                        httponly=True,
-                        secure=False,  # Set to True in production
-                        samesite='Lax',
-                        path='/'
+                        **settings.COOKIE_SETTINGS
                     )
                     response.set_cookie(
                         'refresh_token',
                         str(refresh),
                         max_age=86400,
-                        httponly=True,
-                        secure=False,  # Set to True in production
-                        samesite='Lax',
-                        path='/'
+                        **settings.COOKIE_SETTINGS
                     )
                 else:
                     # Return tokens in response for non-web clients

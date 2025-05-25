@@ -18,15 +18,17 @@ DEBUG = not IS_PRODUCTION
 # Get deployment URLs
 RENDER_EXTERNAL_URL = os.getenv('RENDER_EXTERNAL_URL', '').rstrip('/')
 NETLIFY_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
+FRONTEND_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
 DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '') if IS_PRODUCTION else 'localhost'
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '.onrender.com',
-    DOMAIN,
-    os.getenv('RENDER_EXTERNAL_HOSTNAME', ''),
-]
+# Unified Cookie Settings
+COOKIE_SETTINGS = {
+    'httponly': True,
+    'secure': IS_PRODUCTION,
+    'samesite': 'None' if IS_PRODUCTION else 'Lax',  # Must be 'None' for cross-origin
+    'domain': DOMAIN if IS_PRODUCTION else None,
+    'path': '/',
+}
 
 # Application definition
 INSTALLED_APPS = [
@@ -118,95 +120,41 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'COOKIE_NAME': 'access_token',
     'COOKIE_REFRESH_NAME': 'refresh_token',
-    'COOKIE_SECURE': IS_PRODUCTION,
-    'COOKIE_HTTPONLY': True,
-    'COOKIE_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
-    'COOKIE_MAX_AGE': 3600,
-    'COOKIE_DOMAIN': DOMAIN if IS_PRODUCTION else None,
-    'COOKIE_PATH': '/',
+    'COOKIE_SECURE': COOKIE_SETTINGS['secure'],
+    'COOKIE_HTTPONLY': COOKIE_SETTINGS['httponly'],
+    'COOKIE_SAMESITE': COOKIE_SETTINGS['samesite'],
+    'COOKIE_DOMAIN': COOKIE_SETTINGS['domain'],
+    'COOKIE_PATH': COOKIE_SETTINGS['path'],
 }
 
 # CSRF
 CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_COOKIE_SECURE = IS_PRODUCTION
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'Strict' 
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
+CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
+CSRF_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
+CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
 CSRF_USE_SESSIONS = False
 CSRF_TRUSTED_ORIGINS = [
+    NETLIFY_URL,
+    FRONTEND_URL,
     'http://localhost:5173',
     'http://localhost:3000',
-    NETLIFY_URL,
-] if not IS_PRODUCTION else [
-    NETLIFY_URL,
-    f'https://{DOMAIN}' if IS_PRODUCTION else 'None',
-    f'https://{os.getenv("FRONTEND_URL")}' if IS_PRODUCTION else 'None',
 ]
 
-# Uploadcare
-UPLOADCARE = {
-    'pub_key': os.getenv('UPLOADCARE_PUBLIC_KEY'),
-    'secret': os.getenv('UPLOADCARE_SECRET_KEY'),
-    'cdn_base': os.getenv('UPLOADCARE_CDN_BASE', 'https://ucarecdn.co'),
-}
+# Session Settings
+SESSION_COOKIE_SECURE = COOKIE_SETTINGS['secure']
+SESSION_COOKIE_HTTPONLY = COOKIE_SETTINGS['httponly']
+SESSION_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
+SESSION_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
 
-# Password validation
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
-
-# Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
-
-# Static files
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-MEDIA_URL = '/media/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
-MEDIA_ROOT = BASE_DIR / 'media'
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-AUTH_USER_MODEL = 'users.User'
-
-# REST Framework
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'apps.users.authentication.CustomJWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'EXCEPTION_HANDLER': 'apps.utils.exceptions.custom_exception_handler',
-    'NON_FIELD_ERRORS_KEY': 'general',
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ] if not DEBUG else [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
-    ],
-}
-
-# CORS
-CORS_ALLOW_ALL_ORIGINS = False
+# CORS Settings for cross-origin cookies
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
+    NETLIFY_URL,
+    FRONTEND_URL,
     'http://localhost:5173',
     'http://localhost:3000',
-    NETLIFY_URL,
-] if not IS_PRODUCTION else [
-    NETLIFY_URL,
-    f'https://{DOMAIN}',
 ]
-
 CORS_EXPOSE_HEADERS = [
     'Access-Control-Allow-Credentials',
     'Access-Control-Allow-Origin',
