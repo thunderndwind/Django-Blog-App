@@ -7,9 +7,12 @@ import hmac
 import hashlib
 from django.conf import settings
 import logging
+from apps.utils.decorators import conditional_csrf_protect
+from django.utils.decorators import method_decorator
 
 logger = logging.getLogger(__name__)
 
+@method_decorator(conditional_csrf_protect, name='dispatch')
 class UploadcarePresignedURLView(APIView):
     permission_classes = [IsAuthenticated]
 

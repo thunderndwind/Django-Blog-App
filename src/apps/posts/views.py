@@ -15,10 +15,11 @@ import hashlib
 import hmac
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
+from apps.utils.decorators import conditional_csrf_protect
 
 logger = logging.getLogger(__name__)
 
-@method_decorator(ensure_csrf_cookie, name='dispatch')
+@method_decorator(conditional_csrf_protect, name='dispatch')
 class PostListCreateView(APIView):
     pagination_class = CustomCursorPagination
 
@@ -56,7 +57,7 @@ class PostListCreateView(APIView):
             logger.error(f"Error creating post: {str(e)}")
             return error_response('Failed to create post', status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@method_decorator(ensure_csrf_cookie, name='dispatch')
+@method_decorator(conditional_csrf_protect, name='dispatch')
 class PostDetailView(APIView):
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -136,6 +137,7 @@ class UploadcarePresignedURLView(APIView):
             logger.error(f"Error generating upload configuration: {str(e)}", exc_info=True)
             return error_response('Failed to generate upload configuration', status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@method_decorator(conditional_csrf_protect, name='dispatch')
 class PostLikeView(APIView):
     permission_classes = [IsAuthenticated]
 

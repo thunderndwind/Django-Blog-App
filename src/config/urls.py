@@ -19,14 +19,22 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from apps.users import urls as users_urls
+from django.views.generic import TemplateView
+from django.urls import re_path
+from django.http import HttpResponse
 
 urlpatterns = [
     path('admin-secure-web/', admin.site.urls),
     path('api/auth/', include(users_urls.auth_patterns)),  # Auth endpoints
-    path('api-auth/', include('rest_framework.urls')),
+    # path('api-auth/', include('rest_framework.urls')),
     path('api/posts/', include('apps.posts.urls')),
     path('api/uploads/', include('apps.uploads.urls')),
     path('api/users/', include('apps.users.urls')),  # User endpoints
+    # Health check endpoint for Render
+    path('health/', lambda request: HttpResponse("OK")),
+    # Catch-all route for frontend routing
+    re_path(r'^(?:.*)/?$', TemplateView.as_view(template_name='index.html')),
+
 ]
 
 if settings.DEBUG:

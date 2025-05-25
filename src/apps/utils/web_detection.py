@@ -1,12 +1,13 @@
 def is_web_client(request):
     """
-    Determine if the request is coming from a web browser.
-    
-    Args:
-        request: The HTTP request object
-        
-    Returns:
-        bool: True if request is from a web browser, False otherwise
+    Determine if the request is coming from a web browser or frontend app.
     """
     user_agent = request.headers.get('User-Agent', '').lower()
-    return any(browser in user_agent for browser in ['Mozila', 'Chrome', 'safari', 'Firefox', 'edge', 'opera'])
+    origin = request.headers.get('Origin', '')
+    
+    # Check if request is from our frontend app
+    if origin and any(allowed in origin for allowed in ['localhost', 'netlify.app', '.onrender.com']):
+        return True
+        
+    # Check if request is from a browser
+    return any(browser in user_agent for browser in ['Mozilla', 'Chrome', 'Safari', 'Firefox', 'Edge', 'Opera'])

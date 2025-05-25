@@ -15,12 +15,17 @@ IS_PRODUCTION = os.getenv('DJANGO_PRODUCTION', 'False').lower() == 'true'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-default-key')
 DEBUG = not IS_PRODUCTION
 
+# Get deployment URLs
+RENDER_EXTERNAL_URL = os.getenv('RENDER_EXTERNAL_URL', '').rstrip('/')
+NETLIFY_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
+DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '') if IS_PRODUCTION else 'localhost'
+
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.pythonanywhere.com',  # Allow any subdomain on pythonanywhere
-    '.onrender.com',  # Add Render domain
-    os.getenv('RENDER_EXTERNAL_HOSTNAME', ''),  # Add this
+    '.onrender.com',
+    DOMAIN,
+    os.getenv('RENDER_EXTERNAL_HOSTNAME', ''),
 ]
 
 # Application definition
@@ -42,7 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add this after security middleware
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -115,9 +120,9 @@ SIMPLE_JWT = {
     'COOKIE_REFRESH_NAME': 'refresh_token',
     'COOKIE_SECURE': IS_PRODUCTION,
     'COOKIE_HTTPONLY': True,
-    'COOKIE_SAMESITE': 'Strict',
+    'COOKIE_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
     'COOKIE_MAX_AGE': 3600,
-    'COOKIE_DOMAIN': os.getenv('COOKIE_DOMAIN', 'localhost'),
+    'COOKIE_DOMAIN': DOMAIN if IS_PRODUCTION else None,
     'COOKIE_PATH': '/',
 }
 
@@ -125,13 +130,17 @@ SIMPLE_JWT = {
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_SECURE = IS_PRODUCTION
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SAMESITE = 'Strict'
+CSRF_COOKIE_SAMESITE = 'Strict' 
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_USE_SESSIONS = False
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173').split(',')
-    if origin.strip()
+    'http://localhost:5173',
+    'http://localhost:3000',
+    NETLIFY_URL,
+] if not IS_PRODUCTION else [
+    NETLIFY_URL,
+    f'https://{DOMAIN}' if IS_PRODUCTION else 'None',
+    f'https://{os.getenv("FRONTEND_URL")}' if IS_PRODUCTION else 'None',
 ]
 
 # Uploadcare
@@ -161,6 +170,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -189,8 +200,13 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    # Add your production frontend URL here
+    'http://localhost:3000',
+    NETLIFY_URL,
+] if not IS_PRODUCTION else [
+    NETLIFY_URL,
+    f'https://{DOMAIN}',
 ]
+
 CORS_EXPOSE_HEADERS = [
     'Access-Control-Allow-Credentials',
     'Access-Control-Allow-Origin',
@@ -210,11 +226,11 @@ CORS_ALLOW_HEADERS = [
 
 # Cookie & Domain settings
 COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', 'localhost')
-SESSION_COOKIE_DOMAIN = COOKIE_DOMAIN
-CSRF_COOKIE_DOMAIN = COOKIE_DOMAIN
+SESSION_COOKIE_DOMAIN = DOMAIN if IS_PRODUCTION else None
+CSRF_COOKIE_DOMAIN = DOMAIN if IS_PRODUCTION else None
 SESSION_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Strict'
+SESSION_COOKIE_SAMESITE = 'Strict' 
 
 # Security Settings for Production
 if IS_PRODUCTION:
