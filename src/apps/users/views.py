@@ -20,6 +20,7 @@ from django.utils.decorators import method_decorator
 from apps.utils.web_detection import is_web_client
 from apps.utils.decorators import conditional_csrf_protect
 import re
+from django.middleware.csrf import get_token
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +63,12 @@ class RegisterView(APIView):
                 response.set_cookie(
                     settings.SIMPLE_JWT['COOKIE_NAME'],
                     str(refresh.access_token),
-                    httponly=True,
+                    max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
                     secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
-                    samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE']
+                    httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                    samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                    domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                    path=settings.COOKIE_SETTINGS['path']
                 )
             
             return response
@@ -117,19 +121,31 @@ class LoginView(APIView):
                 if is_web_client(request):
                     response = success_response('Login successful', response_data)
                     
-                    # Set auth tokens
+                    # Set auth tokens with consistent settings
+                    logger.info(f"Setting cookies for web client - secure: {settings.SIMPLE_JWT['COOKIE_SECURE']}, samesite: {settings.SIMPLE_JWT['COOKIE_SAMESITE']}, domain: {settings.SIMPLE_JWT['COOKIE_DOMAIN']}")
+                    
                     response.set_cookie(
-                        'access_token',
+                        settings.SIMPLE_JWT['COOKIE_NAME'],
                         str(refresh.access_token),
-                        max_age=3600,
-                        **settings.COOKIE_SETTINGS
+                        max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+                        secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                        httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                        samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                        domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                        path=settings.COOKIE_SETTINGS['path']
                     )
                     response.set_cookie(
-                        'refresh_token',
+                        settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'],
                         str(refresh),
-                        max_age=86400,
-                        **settings.COOKIE_SETTINGS
+                        max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+                        secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                        httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                        samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                        domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                        path=settings.COOKIE_SETTINGS['path']
                     )
+                    
+                    logger.info("Cookies set successfully for web client")
                 else:
                     # Return tokens in response for non-web clients
                     response_data['tokens'] = {
@@ -161,9 +177,10 @@ class LogoutView(APIView):
     def post(self, request):
         try:
             response = success_response('Logged out successfully')
-            response.delete_cookie('access_token')
-            response.delete_cookie('refresh_token')
-            response.delete_cookie('csrftoken')
+            # Clear all auth and CSRF cookies
+            response.delete_cookie(settings.SIMPLE_JWT['COOKIE_NAME'], path=settings.COOKIE_SETTINGS['path'])
+            response.delete_cookie(settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'], path=settings.COOKIE_SETTINGS['path'])
+            response.delete_cookie('csrftoken', path=settings.COOKIE_SETTINGS['path'])
             return response
         except Exception as e:
             return error_response('Logout failed', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -212,13 +229,14 @@ class TokenRefreshView(APIView):
                 if is_web:
                     response = success_response('Token refreshed successfully', response_data)
                     response.set_cookie(
-                        'access_token',
+                        settings.SIMPLE_JWT['COOKIE_NAME'],
                         str(refresh.access_token),
-                        max_age=3600,
-                        httponly=True,
-                        secure=False,  # Set to True in production
-                        samesite='Lax',
-                        path='/'
+                        max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+                        secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                        httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                        samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                        domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                        path=settings.COOKIE_SETTINGS['path']
                     )
                 else:
                     response_data['tokens'] = {
@@ -330,3 +348,56 @@ class UserProfileView(APIView):
             return error_response('Validation error', str(e), status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return error_response('Failed to update profile', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class CSRFTokenView(APIView):
+    """
+    Endpoint to provide CSRF tokens for web clients
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        if is_web_client(request):
+            csrf_token = get_token(request)
+            response = success_response('CSRF token generated', {'csrfToken': csrf_token})
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=3600 * 24 * 7,  # 7 days
+                secure=settings.CSRF_COOKIE_SECURE,
+                httponly=settings.CSRF_COOKIE_HTTPONLY,
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                domain=settings.CSRF_COOKIE_DOMAIN,
+                path=settings.CSRF_COOKIE_PATH
+            )
+            logger.info(f"CSRF token set for web client: {csrf_token[:10]}...")
+            return response
+        else:
+            return success_response('CSRF token not required for API clients', {'csrfToken': None})
+
+class CookieDebugView(APIView):
+    """
+    Debug endpoint to check cookie status
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        cookies = dict(request.COOKIES)
+        headers = dict(request.headers)
+        
+        debug_info = {
+            'is_web_client': is_web_client(request),
+            'cookies': cookies,
+            'origin': headers.get('Origin', 'None'),
+            'user_agent': headers.get('User-Agent', 'None'),
+            'csrf_token_header': headers.get('X-Csrftoken', 'None'),
+            'settings': {
+                'csrf_secure': settings.CSRF_COOKIE_SECURE,
+                'csrf_samesite': settings.CSRF_COOKIE_SAMESITE,
+                'csrf_domain': settings.CSRF_COOKIE_DOMAIN,
+                'jwt_secure': settings.SIMPLE_JWT['COOKIE_SECURE'],
+                'jwt_samesite': settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                'jwt_domain': settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+            }
+        }
+        
+        return success_response('Cookie debug info', debug_info)

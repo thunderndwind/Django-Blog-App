@@ -41,11 +41,11 @@ def attach_csrf_cookie(response, request):
             'csrftoken',
             csrf_token,
             max_age=3600 * 24 * 7,  # 7 days
-            secure=settings.COOKIE_SETTINGS['secure'],
-            httponly=False,  # Must be False for JavaScript access
-            samesite=settings.COOKIE_SETTINGS['samesite'],
-            domain=settings.COOKIE_SETTINGS['domain'],
-            path=settings.COOKIE_SETTINGS['path']
+            secure=settings.CSRF_COOKIE_SECURE,
+            httponly=settings.CSRF_COOKIE_HTTPONLY,
+            samesite=settings.CSRF_COOKIE_SAMESITE,
+            domain=settings.CSRF_COOKIE_DOMAIN,
+            path=settings.CSRF_COOKIE_PATH
         )
         response['X-CSRFToken'] = csrf_token
     return response

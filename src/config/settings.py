@@ -25,12 +25,12 @@ DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '') if IS_PRODUCTION else 'loca
 
 ALLOWED_HOSTS = [DOMAIN, 'localhost', '127.0.0.1']
 
-# Unified Cookie Settings
+# Unified Cookie Settings for Cross-Origin
 COOKIE_SETTINGS = {
     'httponly': True,
     'secure': IS_PRODUCTION,
-    'samesite': 'None' if IS_PRODUCTION else 'Lax',  # Must be 'None' for cross-origin in production
-    'domain': DOMAIN if IS_PRODUCTION else None,
+    'samesite': 'None' if IS_PRODUCTION else 'Lax',  # Must be 'None' for cross-origin
+    'domain': None,  # Don't set domain for cross-origin cookies
     'path': '/',
 }
 
@@ -46,6 +46,7 @@ SIMPLE_JWT = {
     'COOKIE_SECURE': COOKIE_SETTINGS['secure'],
     'COOKIE_HTTPONLY': COOKIE_SETTINGS['httponly'],
     'COOKIE_SAMESITE': COOKIE_SETTINGS['samesite'],
+    'COOKIE_DOMAIN': COOKIE_SETTINGS['domain'],
 }
 
 # Session configuration
@@ -56,13 +57,13 @@ SESSION_COOKIE_HTTPONLY = COOKIE_SETTINGS['httponly']
 SESSION_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
 SESSION_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
 
-# CSRF configuration
+# CSRF configuration - consistent with other cookies
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
 CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
-CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'  # Required for cross-origin
-CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']  # Set domain for cookie
-CSRF_COOKIE_PATH = COOKIE_SETTINGS['path']  # Set path for cookie
+CSRF_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']  # Use same as other cookies
+CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']  # Use same as other cookies
+CSRF_COOKIE_PATH = COOKIE_SETTINGS['path']
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_USE_SESSIONS = False
 CSRF_FAILURE_VIEW = 'apps.utils.responses.csrf_failure'
@@ -81,6 +82,20 @@ CORS_EXPOSE_HEADERS = [
     'Access-Control-Allow-Credentials',
     'Access-Control-Allow-Origin',
     'X-CSRFToken',
+    'Set-Cookie',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'cookie',
 ]
 
 # REST Framework configuration
@@ -187,18 +202,6 @@ CACHES = {
         }
     }
 }
-
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
 
 # Security Settings for Production
 if IS_PRODUCTION:

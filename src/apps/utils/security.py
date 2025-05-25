@@ -4,7 +4,11 @@ from apps.utils.web_detection import is_web_client
 from apps.utils.responses import error_response
 from rest_framework import status
 from django.conf import settings
+from rest_framework.response import Response
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SecurityHeadersMiddleware:
     def __init__(self, get_response):
@@ -34,42 +38,67 @@ class AutoCSRFMiddleware:
         response = self.get_response(request)
         
         # Automatically attach CSRF token for web clients
-        if is_web_client(request) and hasattr(response, 'set_cookie'):
+        is_web = is_web_client(request)
+        if is_web and hasattr(response, 'set_cookie'):
             csrf_token = get_token(request)
+            logger.info(f"AutoCSRF: Attaching CSRF token to response for {request.path}")
             response.set_cookie(
                 'csrftoken',
                 csrf_token,
                 max_age=3600 * 24 * 7,  # 7 days
-                secure=settings.COOKIE_SETTINGS['secure'],
-                httponly=False,  # Must be False for JavaScript access
-                samesite=settings.COOKIE_SETTINGS['samesite'],
-                domain=settings.COOKIE_SETTINGS['domain'],
-                path=settings.COOKIE_SETTINGS['path']
+                secure=settings.CSRF_COOKIE_SECURE,
+                httponly=settings.CSRF_COOKIE_HTTPONLY,
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                domain=settings.CSRF_COOKIE_DOMAIN,
+                path=settings.CSRF_COOKIE_PATH
             )
             response['X-CSRFToken'] = csrf_token
+        elif is_web:
+            logger.info(f"AutoCSRF: Web client detected but response doesn't support cookies for {request.path}")
+        else:
+            logger.info(f"AutoCSRF: Non-web client, skipping CSRF token for {request.path}")
         
         return response
 
 class CustomCsrfMiddleware(CsrfViewMiddleware):
     def _reject(self, request, reason):
-        # Return a proper JsonResponse instead of DRF Response
-        return JsonResponse({
+        # Return a proper JsonResponse for CSRF failures
+        response = JsonResponse({
             'status': 'error',
             'message': 'CSRF token verification failed',
             'errors': reason
         }, status=403)
+        response['Content-Type'] = 'application/json'
+        return response
 
     def process_view(self, request, callback, callback_args, callback_kwargs):
         if getattr(request, '_dont_enforce_csrf_checks', False):
             return None
             
         # Skip CSRF for non-web clients
-        if not is_web_client(request):
+        is_web = is_web_client(request)
+        logger.info(f"CSRF check - is_web_client: {is_web}, path: {request.path}, origin: {request.headers.get('Origin', 'None')}")
+        
+        if not is_web:
+            logger.info("Skipping CSRF for non-web client")
             return None
+            
+        # For web clients, ensure CSRF token is present
+        csrf_token = request.headers.get('X-CSRFToken') or request.META.get('HTTP_X_CSRFTOKEN')
+        cookie_token = request.COOKIES.get('csrftoken')
+        
+        logger.info(f"CSRF tokens - header: {csrf_token[:10] if csrf_token else 'None'}, cookie: {cookie_token[:10] if cookie_token else 'None'}")
+        
+        if not csrf_token:
+            # Check if token is in cookies
+            if cookie_token:
+                request.META['HTTP_X_CSRFTOKEN'] = cookie_token
+                logger.info("Using CSRF token from cookie")
+            else:
+                logger.warning("No CSRF token found in headers or cookies")
+        
         try:
-            csrf_token = request.headers.get('X-CSRFToken')
-            if csrf_token:
-                request.META['HTTP_X_CSRFTOKEN'] = csrf_token
             return super().process_view(request, callback, callback_args, callback_kwargs)
-        except Exception:
-            return self._reject(request, "CSRF token missing or incorrect")
+        except Exception as e:
+            logger.error(f"CSRF token validation failed: {str(e)}")
+            return self._reject(request, f"CSRF token validation failed: {str(e)}")
