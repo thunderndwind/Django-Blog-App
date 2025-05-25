@@ -212,23 +212,46 @@ class LogoutView(APIView):
             
             response = success_response('Logged out successfully')
             
-            # Clear JWT cookies - delete_cookie only accepts path and domain
-            response.delete_cookie(
+            # For cross-origin cookie deletion, we need to set cookies with the same attributes
+            # and expire them, rather than using delete_cookie which doesn't work reliably
+            
+            # Clear JWT access token cookie
+            response.set_cookie(
                 settings.SIMPLE_JWT['COOKIE_NAME'],
+                '',  # Empty value
+                max_age=0,  # Expire immediately
+                expires='Thu, 01 Jan 1970 00:00:00 GMT',  # Past date
                 path=settings.COOKIE_SETTINGS['path'],
-                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
-            )
-            response.delete_cookie(
-                settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'],
-                path=settings.COOKIE_SETTINGS['path'],
-                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
+                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE']
             )
             
-            # Clear CSRF cookie
-            response.delete_cookie(
+            # Clear JWT refresh token cookie
+            response.set_cookie(
+                settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'],
+                '',  # Empty value
+                max_age=0,  # Expire immediately
+                expires='Thu, 01 Jan 1970 00:00:00 GMT',  # Past date
+                path=settings.COOKIE_SETTINGS['path'],
+                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN'],
+                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['COOKIE_HTTPONLY'],
+                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE']
+            )
+            
+            # Clear CSRF token cookie
+            response.set_cookie(
                 'csrftoken',
+                '',  # Empty value
+                max_age=0,  # Expire immediately
+                expires='Thu, 01 Jan 1970 00:00:00 GMT',  # Past date
                 path=settings.CSRF_COOKIE_PATH,
-                domain=settings.CSRF_COOKIE_DOMAIN
+                domain=settings.CSRF_COOKIE_DOMAIN,
+                secure=settings.CSRF_COOKIE_SECURE,
+                httponly=settings.CSRF_COOKIE_HTTPONLY,
+                samesite=settings.CSRF_COOKIE_SAMESITE
             )
             
             logger.info("Logout: Successfully cleared all authentication and CSRF cookies")
