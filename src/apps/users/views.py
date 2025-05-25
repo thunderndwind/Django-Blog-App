@@ -212,29 +212,22 @@ class LogoutView(APIView):
             
             response = success_response('Logged out successfully')
             
-            # For cross-origin scenarios, we need to delete cookies with the same settings they were set with
-            # Clear JWT cookies with proper settings
+            # Clear JWT cookies - delete_cookie only accepts path and domain
             response.delete_cookie(
                 settings.SIMPLE_JWT['COOKIE_NAME'],
                 path=settings.COOKIE_SETTINGS['path'],
-                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
-                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
                 domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
             )
             response.delete_cookie(
                 settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'],
                 path=settings.COOKIE_SETTINGS['path'],
-                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
-                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
                 domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
             )
             
-            # Clear CSRF cookie with CSRF-specific settings
+            # Clear CSRF cookie
             response.delete_cookie(
                 'csrftoken',
                 path=settings.CSRF_COOKIE_PATH,
-                secure=settings.CSRF_COOKIE_SECURE,
-                samesite=settings.CSRF_COOKIE_SAMESITE,
                 domain=settings.CSRF_COOKIE_DOMAIN
             )
             
