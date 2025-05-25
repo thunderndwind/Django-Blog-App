@@ -16,6 +16,7 @@ import hmac
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from apps.utils.decorators import conditional_csrf_protect
+from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
 
@@ -32,18 +33,31 @@ class PostListCreateView(APIView):
 
     def get(self, request):
         try:
-            posts = Post.objects.select_related('author').prefetch_related('likes').all()
+            User = get_user_model()
+            posts = Post.objects.select_related(
+                'author'
+            ).prefetch_related(
+                'likes'
+            ).order_by('-created_at').all()
             
             # Initialize paginator
             paginator = self.pagination_class()
             paginated_posts = paginator.paginate_queryset(posts, request)
             
-            serializer = PostSerializer(paginated_posts, many=True)
+            serializer = PostSerializer(
+                paginated_posts, 
+                many=True,
+                context={'request': request}
+            )
             return paginator.get_paginated_response(serializer.data)
             
         except Exception as e:
             logger.error(f"Error retrieving posts: {str(e)}")
-            return error_response('Failed to retrieve posts', status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_response(
+                'Failed to retrieve posts', 
+                str(e) if settings.DEBUG else None,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def post(self, request):
         try:
