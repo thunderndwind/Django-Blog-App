@@ -15,26 +15,25 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.generic import TemplateView
+from django.http import HttpResponse
 from django.conf import settings
 from django.conf.urls.static import static
 from apps.users import urls as users_urls
-from django.views.generic import TemplateView
-from django.urls import re_path
-from django.http import HttpResponse
 
 urlpatterns = [
     path('admin-secure-web/', admin.site.urls),
     path('api/auth/', include(users_urls.auth_patterns)),  # Auth endpoints
-    # path('api-auth/', include('rest_framework.urls')),
     path('api/posts/', include('apps.posts.urls')),
     path('api/uploads/', include('apps.uploads.urls')),
     path('api/users/', include('apps.users.urls')),  # User endpoints
     # Health check endpoint for Render
     path('health/', lambda request: HttpResponse("OK")),
-    # Catch-all route for frontend routing
-    re_path(r'^(?:.*)/?$', TemplateView.as_view(template_name='index.html')),
-
+    # Serve index.html for root path
+    path('', TemplateView.as_view(template_name='index.html')),
+    # Catch all other routes
+    re_path(r'^(?!api/).*$', TemplateView.as_view(template_name='index.html')),
 ]
 
 if settings.DEBUG:

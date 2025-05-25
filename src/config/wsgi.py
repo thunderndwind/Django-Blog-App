@@ -9,11 +9,12 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 
 import os
 import sys
+from pathlib import Path
 
 # Add project directory to Python path
-path = '/home/djangoSocialApp/socialapi/src'
-if path not in sys.path:
-    sys.path.append(path)
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
