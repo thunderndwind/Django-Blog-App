@@ -9,6 +9,16 @@
         <h1>API is running</h1>
         <p>Please use the appropriate endpoints to interact with the API.</p>
 
+        <h2>CSRF Token Debug</h2>
+        <div id="debug-info">
+            <p>Loading debug information...</p>
+        </div>
+
+        <button onclick="testSimpleCSRF()">
+            Test Simple CSRF Cookie Setting
+        </button>
+        <div id="simple-test-result"></div>
+
         <h2>CSRF Token Usage for JavaScript</h2>
         <p>For web clients, here's how to handle CSRF tokens:</p>
 
@@ -42,6 +52,21 @@
                 }
             }
 
+            // Function to get debug information
+            async function fetchDebugInfo() {
+                try {
+                    const response = await fetch("/api/auth/debug", {
+                        method: "GET",
+                        credentials: "include",
+                    });
+                    const data = await response.json();
+                    return data.data;
+                } catch (error) {
+                    console.error("Failed to fetch debug info:", error);
+                    return null;
+                }
+            }
+
             // Function to make authenticated requests with CSRF token
             async function makeAuthenticatedRequest(url, options = {}) {
                 let csrfToken = getCSRFToken();
@@ -64,17 +89,121 @@
                 });
             }
 
-            // Example usage:
-            // makeAuthenticatedRequest('/api/auth/login', {
-            //     method: 'POST',
-            //     body: JSON.stringify({
-            //         username: 'your_username',
-            //         password: 'your_password'
-            //     })
-            // });
+            // Auto-load debug information
+            async function loadDebugInfo() {
+                const debugInfo = await fetchDebugInfo();
+                const debugDiv = document.getElementById("debug-info");
 
-            console.log("CSRF Token Helper functions loaded");
-            console.log("Current CSRF token:", getCSRFToken());
+                if (debugInfo) {
+                    debugDiv.innerHTML = `
+                        <h3>Debug Information</h3>
+                        <p><strong>Is Web Client:</strong> ${
+                            debugInfo.is_web_client
+                        }</p>
+                        <p><strong>CSRF Token Generated:</strong> ${
+                            debugInfo.csrf_token_generated
+                                ? debugInfo.csrf_token_generated.substring(
+                                      0,
+                                      10
+                                  ) + "..."
+                                : "None"
+                        }</p>
+                        <p><strong>User Agent:</strong> ${
+                            debugInfo.request_info.user_agent
+                        }</p>
+                        <p><strong>Origin:</strong> ${
+                            debugInfo.request_info.origin
+                        }</p>
+                        <h4>Cookie Settings:</h4>
+                        <ul>
+                            <li><strong>CSRF_COOKIE_SECURE:</strong> ${
+                                debugInfo.cookie_settings.CSRF_COOKIE_SECURE
+                            }</li>
+                            <li><strong>CSRF_COOKIE_HTTPONLY:</strong> ${
+                                debugInfo.cookie_settings.CSRF_COOKIE_HTTPONLY
+                            }</li>
+                            <li><strong>CSRF_COOKIE_SAMESITE:</strong> ${
+                                debugInfo.cookie_settings.CSRF_COOKIE_SAMESITE
+                            }</li>
+                            <li><strong>CSRF_COOKIE_DOMAIN:</strong> ${
+                                debugInfo.cookie_settings.CSRF_COOKIE_DOMAIN ||
+                                "None"
+                            }</li>
+                            <li><strong>CSRF_COOKIE_PATH:</strong> ${
+                                debugInfo.cookie_settings.CSRF_COOKIE_PATH
+                            }</li>
+                            <li><strong>IS_PRODUCTION:</strong> ${
+                                debugInfo.cookie_settings.IS_PRODUCTION
+                            }</li>
+                        </ul>
+                        <h4>Current Cookies:</h4>
+                        <pre>${JSON.stringify(
+                            debugInfo.current_cookies,
+                            null,
+                            2
+                        )}</pre>
+                    `;
+                } else {
+                    debugDiv.innerHTML =
+                        "<p>Failed to load debug information</p>";
+                }
+
+                // Check cookies after debug call
+                setTimeout(() => {
+                    console.log("CSRF Token Helper functions loaded");
+                    console.log("Current CSRF token:", getCSRFToken());
+                    console.log("All cookies:", document.cookie);
+                }, 1000);
+            }
+
+            // Load debug info when page loads
+            window.addEventListener("load", loadDebugInfo);
+
+            // Test simple CSRF endpoint
+            async function testSimpleCSRF() {
+                const resultDiv = document.getElementById("simple-test-result");
+                resultDiv.innerHTML =
+                    "<p>Testing simple CSRF cookie setting...</p>";
+
+                try {
+                    const response = await fetch("/api/auth/csrf-test", {
+                        method: "GET",
+                        credentials: "include",
+                    });
+                    const data = await response.json();
+
+                    // Wait a moment for cookies to be set
+                    setTimeout(() => {
+                        const csrfToken = getCSRFToken();
+                        const allCookies = document.cookie;
+
+                        resultDiv.innerHTML = `
+                            <h3>Simple CSRF Test Result</h3>
+                            <p><strong>Response:</strong> ${data.message}</p>
+                            <p><strong>Token from response:</strong> ${
+                                data.data.csrfToken
+                                    ? data.data.csrfToken.substring(0, 10) +
+                                      "..."
+                                    : "None"
+                            }</p>
+                            <p><strong>Token from cookie:</strong> ${
+                                csrfToken || "None"
+                            }</p>
+                            <p><strong>All cookies:</strong> ${
+                                allCookies || "None"
+                            }</p>
+                            <p><strong>Cookie settings used:</strong></p>
+                            <pre>${JSON.stringify(
+                                data.data.settings,
+                                null,
+                                2
+                            )}</pre>
+                        `;
+                    }, 500);
+                } catch (error) {
+                    resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                }
+            }
         </script>
     </body>
 </html>

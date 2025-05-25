@@ -246,5 +246,10 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'apps.utils': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }

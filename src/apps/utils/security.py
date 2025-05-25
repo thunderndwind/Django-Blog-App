@@ -39,9 +39,19 @@ class AutoCSRFMiddleware:
         
         # Automatically attach CSRF token for web clients
         is_web = is_web_client(request)
+        logger.info(f"AutoCSRF: Processing request {request.path}")
+        logger.info(f"AutoCSRF: Is web client: {is_web}")
+        logger.info(f"AutoCSRF: User-Agent: {request.headers.get('User-Agent', 'None')}")
+        logger.info(f"AutoCSRF: Origin: {request.headers.get('Origin', 'None')}")
+        logger.info(f"AutoCSRF: Response type: {type(response)}")
+        logger.info(f"AutoCSRF: Has set_cookie: {hasattr(response, 'set_cookie')}")
+        
         if is_web and hasattr(response, 'set_cookie'):
             csrf_token = get_token(request)
             logger.info(f"AutoCSRF: Attaching CSRF token to response for {request.path}")
+            logger.info(f"AutoCSRF: CSRF token: {csrf_token[:10]}...")
+            logger.info(f"AutoCSRF: Cookie settings - secure: {settings.CSRF_COOKIE_SECURE}, httponly: {settings.CSRF_COOKIE_HTTPONLY}, samesite: {settings.CSRF_COOKIE_SAMESITE}, domain: {settings.CSRF_COOKIE_DOMAIN}")
+            
             response.set_cookie(
                 'csrftoken',
                 csrf_token,
@@ -53,8 +63,9 @@ class AutoCSRFMiddleware:
                 path=settings.CSRF_COOKIE_PATH
             )
             response['X-CSRFToken'] = csrf_token
+            logger.info(f"AutoCSRF: Cookie set successfully")
         elif is_web:
-            logger.info(f"AutoCSRF: Web client detected but response doesn't support cookies for {request.path}")
+            logger.warning(f"AutoCSRF: Web client detected but response doesn't support cookies for {request.path}")
         else:
             logger.info(f"AutoCSRF: Non-web client, skipping CSRF token for {request.path}")
         

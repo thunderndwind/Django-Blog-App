@@ -21,6 +21,7 @@ from apps.utils.web_detection import is_web_client
 from apps.utils.decorators import conditional_csrf_protect, ensure_csrf_token
 import re
 from django.middleware.csrf import get_token
+from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -431,11 +432,21 @@ class GetCSRFTokenView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
-        if is_web_client(request):
+        logger.info(f"GetCSRFTokenView: Request from {request.headers.get('User-Agent', 'Unknown')}")
+        logger.info(f"GetCSRFTokenView: Origin: {request.headers.get('Origin', 'None')}")
+        
+        is_web = is_web_client(request)
+        logger.info(f"GetCSRFTokenView: Is web client: {is_web}")
+        
+        if is_web:
             csrf_token = get_csrf_token_for_js(request)
+            logger.info(f"GetCSRFTokenView: Generated CSRF token: {csrf_token[:10]}...")
+            
             response = success_response('CSRF token retrieved', {'csrfToken': csrf_token})
             
             # Set CSRF token in cookie for automatic inclusion in future requests
+            logger.info(f"GetCSRFTokenView: Setting cookie with settings - secure: {settings.CSRF_COOKIE_SECURE}, httponly: {settings.CSRF_COOKIE_HTTPONLY}, samesite: {settings.CSRF_COOKIE_SAMESITE}, domain: {settings.CSRF_COOKIE_DOMAIN}")
+            
             response.set_cookie(
                 'csrftoken',
                 csrf_token,
@@ -450,7 +461,124 @@ class GetCSRFTokenView(APIView):
             # Also include in response header
             response['X-CSRFToken'] = csrf_token
             
-            logger.info(f"CSRF token provided to web client: {csrf_token[:10]}...")
+            logger.info(f"GetCSRFTokenView: CSRF token provided to web client: {csrf_token[:10]}...")
+            logger.info(f"GetCSRFTokenView: Cookie set with httponly={settings.CSRF_COOKIE_HTTPONLY}")
             return response
         else:
             return success_response('CSRF token not required for API clients', {'csrfToken': None})
+
+class DebugSettingsView(APIView):
+    """
+    Debug view to check current settings and CSRF token generation
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        from django.middleware.csrf import get_token
+        
+        # Force generate CSRF token
+        csrf_token = get_token(request)
+        
+        debug_info = {
+            'is_web_client': is_web_client(request),
+            'csrf_token_generated': csrf_token,
+            'request_info': {
+                'user_agent': request.headers.get('User-Agent', 'None'),
+                'origin': request.headers.get('Origin', 'None'),
+                'path': request.path,
+                'method': request.method,
+            },
+            'cookie_settings': {
+                'CSRF_COOKIE_SECURE': settings.CSRF_COOKIE_SECURE,
+                'CSRF_COOKIE_HTTPONLY': settings.CSRF_COOKIE_HTTPONLY,
+                'CSRF_COOKIE_SAMESITE': settings.CSRF_COOKIE_SAMESITE,
+                'CSRF_COOKIE_DOMAIN': settings.CSRF_COOKIE_DOMAIN,
+                'CSRF_COOKIE_PATH': settings.CSRF_COOKIE_PATH,
+                'IS_PRODUCTION': settings.IS_PRODUCTION if hasattr(settings, 'IS_PRODUCTION') else 'Not set',
+            },
+            'current_cookies': dict(request.COOKIES),
+        }
+        
+        response = success_response('Debug info retrieved', debug_info)
+        
+        # Manually set CSRF cookie to test
+        if is_web_client(request):
+            logger.info(f"DebugSettingsView: Manually setting CSRF cookie")
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=3600 * 24 * 7,
+                secure=settings.CSRF_COOKIE_SECURE,
+                httponly=settings.CSRF_COOKIE_HTTPONLY,
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                domain=settings.CSRF_COOKIE_DOMAIN,
+                path=settings.CSRF_COOKIE_PATH
+            )
+            response['X-CSRFToken'] = csrf_token
+            logger.info(f"DebugSettingsView: CSRF cookie set manually")
+        
+        return response
+
+class SimpleCSRFTestView(APIView):
+    """
+    Simple test view to directly set CSRF cookie
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        from django.middleware.csrf import get_token
+        from django.http import JsonResponse
+        
+        # Generate CSRF token
+        csrf_token = get_token(request)
+        
+        # Create a simple JSON response
+        response_data = {
+            'status': 'success',
+            'message': 'Simple CSRF test',
+            'data': {
+                'csrfToken': csrf_token,
+                'cookieWillBeSet': True,
+                'settings': {
+                    'secure': settings.CSRF_COOKIE_SECURE,
+                    'httponly': settings.CSRF_COOKIE_HTTPONLY,
+                    'samesite': settings.CSRF_COOKIE_SAMESITE,
+                    'domain': settings.CSRF_COOKIE_DOMAIN,
+                    'path': settings.CSRF_COOKIE_PATH,
+                }
+            }
+        }
+        
+        # Use Django's JsonResponse directly
+        response = JsonResponse(response_data)
+        
+        # Set CSRF cookie manually
+        response.set_cookie(
+            'csrftoken',
+            csrf_token,
+            max_age=3600 * 24 * 7,
+            secure=False,  # Force to False for testing
+            httponly=False,  # Force to False for JS access
+            samesite='Lax',  # Force to Lax for testing
+            domain=None,  # Force to None
+            path='/'  # Force to /
+        )
+        
+        # Also set a test cookie
+        response.set_cookie(
+            'test_cookie',
+            'test_value',
+            max_age=3600,
+            secure=False,
+            httponly=False,
+            samesite='Lax',
+            domain=None,
+            path='/'
+        )
+        
+        response['X-CSRFToken'] = csrf_token
+        
+        logger.info(f"SimpleCSRFTestView: Set CSRF token {csrf_token[:10]}... in cookie")
+        logger.info(f"SimpleCSRFTestView: Cookie settings - secure=False, httponly=False, samesite=Lax")
+        
+        return response
