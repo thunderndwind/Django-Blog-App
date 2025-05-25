@@ -1,10 +1,26 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
 from django.core.exceptions import ValidationError
 from apps.utils.fields import UploadcareImageField
 
 class User(AbstractUser):
     DEFAULT_PROFILE_UUID = "41bf360b-e5d0-410e-aa84-31f5183dfbd1"
+    
+    # Add related_name to avoid clashes
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='custom_user_set'  # Changed from user_set
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='custom_user_set'  # Changed from user_set
+    )
     
     email = models.EmailField(unique=True, blank=False, null=False)
     username = models.CharField(max_length=150, unique=True, blank=False, null=False)

@@ -196,6 +196,13 @@ if IS_PRODUCTION:
     SECURE_HSTS_PRELOAD = True
     X_FRAME_OPTIONS = 'DENY'
 
+
+STATIC_URL= '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
 # Logging
 LOGGING = {
     'version': 1,
