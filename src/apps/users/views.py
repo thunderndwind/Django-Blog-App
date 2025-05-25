@@ -434,6 +434,7 @@ class GetCSRFTokenView(APIView):
     def get(self, request):
         logger.info(f"GetCSRFTokenView: Request from {request.headers.get('User-Agent', 'Unknown')}")
         logger.info(f"GetCSRFTokenView: Origin: {request.headers.get('Origin', 'None')}")
+        logger.info(f"GetCSRFTokenView: Referer: {request.headers.get('Referer', 'None')}")
         
         is_web = is_web_client(request)
         logger.info(f"GetCSRFTokenView: Is web client: {is_web}")
@@ -444,8 +445,13 @@ class GetCSRFTokenView(APIView):
             
             response = success_response('CSRF token retrieved', {'csrfToken': csrf_token})
             
+            # Check if this is a cross-origin request
+            origin = request.headers.get('Origin', '')
+            is_cross_origin = origin and ('netlify' in origin or 'localhost' not in origin)
+            
             # Set CSRF token in cookie for automatic inclusion in future requests
-            logger.info(f"GetCSRFTokenView: Setting cookie with settings - secure: {settings.CSRF_COOKIE_SECURE}, httponly: {settings.CSRF_COOKIE_HTTPONLY}, samesite: {settings.CSRF_COOKIE_SAMESITE}, domain: {settings.CSRF_COOKIE_DOMAIN}")
+            logger.info(f"GetCSRFTokenView: Setting cookie for {'cross-origin' if is_cross_origin else 'same-origin'} request")
+            logger.info(f"GetCSRFTokenView: Using settings - secure: {settings.CSRF_COOKIE_SECURE}, httponly: {settings.CSRF_COOKIE_HTTPONLY}, samesite: {settings.CSRF_COOKIE_SAMESITE}")
             
             response.set_cookie(
                 'csrftoken',
@@ -465,6 +471,7 @@ class GetCSRFTokenView(APIView):
             logger.info(f"GetCSRFTokenView: Cookie set with httponly={settings.CSRF_COOKIE_HTTPONLY}")
             return response
         else:
+            logger.info(f"GetCSRFTokenView: Non-web client detected, not setting CSRF token")
             return success_response('CSRF token not required for API clients', {'csrfToken': None})
 
 class DebugSettingsView(APIView):
@@ -532,6 +539,10 @@ class SimpleCSRFTestView(APIView):
         # Generate CSRF token
         csrf_token = get_token(request)
         
+        # Check if this is a cross-origin request
+        origin = request.headers.get('Origin', '')
+        is_cross_origin = origin and 'netlify' in origin
+        
         # Create a simple JSON response
         response_data = {
             'status': 'success',
@@ -539,12 +550,23 @@ class SimpleCSRFTestView(APIView):
             'data': {
                 'csrfToken': csrf_token,
                 'cookieWillBeSet': True,
+                'isCrossOrigin': is_cross_origin,
+                'origin': origin,
+                'isWebClient': is_web_client(request),
                 'settings': {
                     'secure': settings.CSRF_COOKIE_SECURE,
                     'httponly': settings.CSRF_COOKIE_HTTPONLY,
                     'samesite': settings.CSRF_COOKIE_SAMESITE,
                     'domain': settings.CSRF_COOKIE_DOMAIN,
                     'path': settings.CSRF_COOKIE_PATH,
+                },
+                'productionSettings': {
+                    'IS_PRODUCTION': getattr(settings, 'IS_PRODUCTION', False),
+                    'secure': True,
+                    'httponly': False,
+                    'samesite': 'None',
+                    'domain': None,
+                    'path': '/'
                 }
             }
         }
@@ -552,33 +574,48 @@ class SimpleCSRFTestView(APIView):
         # Use Django's JsonResponse directly
         response = JsonResponse(response_data)
         
-        # Set CSRF cookie manually
-        response.set_cookie(
-            'csrftoken',
-            csrf_token,
-            max_age=3600 * 24 * 7,
-            secure=False,  # Force to False for testing
-            httponly=False,  # Force to False for JS access
-            samesite='Lax',  # Force to Lax for testing
-            domain=None,  # Force to None
-            path='/'  # Force to /
-        )
+        # Set CSRF cookie with production settings for cross-origin
+        if is_cross_origin:
+            # Use production-like settings for cross-origin
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=3600 * 24 * 7,
+                secure=True,  # Required for SameSite=None
+                httponly=False,  # Required for JS access
+                samesite='None',  # Required for cross-origin
+                domain=None,  # Don't set domain
+                path='/'
+            )
+            logger.info(f"SimpleCSRFTestView: Set cross-origin CSRF token with secure=True, samesite=None")
+        else:
+            # Use development settings for same-origin
+            response.set_cookie(
+                'csrftoken',
+                csrf_token,
+                max_age=3600 * 24 * 7,
+                secure=False,  # OK for development
+                httponly=False,  # Required for JS access
+                samesite='Lax',  # OK for same-origin
+                domain=None,
+                path='/'
+            )
+            logger.info(f"SimpleCSRFTestView: Set same-origin CSRF token with secure=False, samesite=Lax")
         
-        # Also set a test cookie
+        # Also set a test cookie with same settings
         response.set_cookie(
             'test_cookie',
             'test_value',
             max_age=3600,
-            secure=False,
+            secure=True if is_cross_origin else False,
             httponly=False,
-            samesite='Lax',
+            samesite='None' if is_cross_origin else 'Lax',
             domain=None,
             path='/'
         )
         
         response['X-CSRFToken'] = csrf_token
         
-        logger.info(f"SimpleCSRFTestView: Set CSRF token {csrf_token[:10]}... in cookie")
-        logger.info(f"SimpleCSRFTestView: Cookie settings - secure=False, httponly=False, samesite=Lax")
+        logger.info(f"SimpleCSRFTestView: Set CSRF token {csrf_token[:10]}... for {'cross-origin' if is_cross_origin else 'same-origin'} request")
         
         return response

@@ -114,6 +114,13 @@
                         <p><strong>Origin:</strong> ${
                             debugInfo.request_info.origin
                         }</p>
+                        <p><strong>Current URL:</strong> ${
+                            window.location.href
+                        }</p>
+                        <p><strong>Is Cross-Origin:</strong> ${
+                            window.location.origin !==
+                            "https://socialapi-backend.onrender.com"
+                        }</p>
                         <h4>Cookie Settings:</h4>
                         <ul>
                             <li><strong>CSRF_COOKIE_SECURE:</strong> ${
@@ -142,6 +149,15 @@
                             null,
                             2
                         )}</pre>
+                        <h4>Browser Info:</h4>
+                        <ul>
+                            <li><strong>Navigator User Agent:</strong> ${
+                                navigator.userAgent
+                            }</li>
+                            <li><strong>Document Cookie:</strong> ${
+                                document.cookie || "Empty"
+                            }</li>
+                        </ul>
                     `;
                 } else {
                     debugDiv.innerHTML =
@@ -180,6 +196,15 @@
                         resultDiv.innerHTML = `
                             <h3>Simple CSRF Test Result</h3>
                             <p><strong>Response:</strong> ${data.message}</p>
+                            <p><strong>Is Cross-Origin:</strong> ${
+                                data.data.isCrossOrigin
+                            }</p>
+                            <p><strong>Is Web Client:</strong> ${
+                                data.data.isWebClient
+                            }</p>
+                            <p><strong>Origin:</strong> ${
+                                data.data.origin || "None"
+                            }</p>
                             <p><strong>Token from response:</strong> ${
                                 data.data.csrfToken
                                     ? data.data.csrfToken.substring(0, 10) +
@@ -195,6 +220,12 @@
                             <p><strong>Cookie settings used:</strong></p>
                             <pre>${JSON.stringify(
                                 data.data.settings,
+                                null,
+                                2
+                            )}</pre>
+                            <p><strong>Production settings:</strong></p>
+                            <pre>${JSON.stringify(
+                                data.data.productionSettings,
                                 null,
                                 2
                             )}</pre>
