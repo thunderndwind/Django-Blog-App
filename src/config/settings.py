@@ -21,6 +21,10 @@ NETLIFY_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
 FRONTEND_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
 DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '') if IS_PRODUCTION else 'localhost'
 
+ALLOWED_HOSTS = [
+    DOMAIN,
+]
+
 # Unified Cookie Settings
 COOKIE_SETTINGS = {
     'httponly': True,
