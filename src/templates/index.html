@@ -3,238 +3,157 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>API Landing</title>
+        <title>Django REST API</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 40px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            h1 {
+                color: #333;
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .status {
+                background: #d4edda;
+                border: 1px solid #c3e6cb;
+                color: #155724;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
+            .endpoints {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                padding: 20px;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
+            .endpoint {
+                margin: 10px 0;
+                padding: 8px;
+                background: white;
+                border-radius: 3px;
+                border-left: 4px solid #007bff;
+            }
+            code {
+                background: #f1f3f4;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: "Courier New", monospace;
+            }
+        </style>
     </head>
     <body>
-        <h1>API is running</h1>
-        <p>Please use the appropriate endpoints to interact with the API.</p>
+        <div class="container">
+            <h1>🚀 Django REST API</h1>
 
-        <h2>CSRF Token Debug</h2>
-        <div id="debug-info">
-            <p>Loading debug information...</p>
+            <div class="status">
+                <h3>✅ API Status: Running</h3>
+                <p>
+                    Your Django REST API is successfully deployed and running
+                    with CSRF protection enabled.
+                </p>
+            </div>
+
+            <div class="endpoints">
+                <h3>📋 Available Endpoints</h3>
+
+                <h4>Authentication</h4>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/auth/register</code> - User
+                    registration
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/auth/login</code> - User
+                    login
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/auth/logout</code> - User
+                    logout
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/auth/token/refresh</code> -
+                    Refresh JWT token
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/auth/token/verify</code> -
+                    Verify JWT token
+                </div>
+
+                <h4>User Management</h4>
+                <div class="endpoint">
+                    <strong>GET</strong> <code>/api/users/me</code> - Get
+                    current user details
+                </div>
+                <div class="endpoint">
+                    <strong>GET/PATCH</strong> <code>/api/users/profile</code> -
+                    Get/Update user profile
+                </div>
+
+                <h4>Posts</h4>
+                <div class="endpoint">
+                    <strong>GET/POST</strong> <code>/api/posts/</code> -
+                    List/Create posts
+                </div>
+                <div class="endpoint">
+                    <strong>GET/PATCH/DELETE</strong>
+                    <code>/api/posts/{id}</code> - Retrieve/Update/Delete post
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/posts/{id}/like</code> -
+                    Like/Unlike post
+                </div>
+
+                <h4>File Uploads</h4>
+                <div class="endpoint">
+                    <strong>GET</strong>
+                    <code>/api/uploads/presigned-url</code> - Get upload
+                    configuration
+                </div>
+            </div>
+
+            <div class="endpoints">
+                <h3>🔒 Security Features</h3>
+                <ul>
+                    <li>✅ CSRF Protection for web clients</li>
+                    <li>✅ JWT Authentication with HTTP-only cookies</li>
+                    <li>✅ CORS enabled for cross-origin requests</li>
+                    <li>✅ Secure cookie settings for production</li>
+                    <li>✅ Input validation and sanitization</li>
+                </ul>
+            </div>
+
+            <div class="endpoints">
+                <h3>📖 Frontend Integration</h3>
+                <p>
+                    For detailed integration instructions, see the
+                    <code>FRONTEND_INTEGRATION.md</code> file in your project
+                    repository.
+                </p>
+                <p><strong>Key Points:</strong></p>
+                <ul>
+                    <li>
+                        Include <code>credentials: 'include'</code> in all fetch
+                        requests
+                    </li>
+                    <li>
+                        Use CSRF tokens in headers for state-changing requests
+                    </li>
+                    <li>
+                        Handle JWT tokens automatically via HTTP-only cookies
+                    </li>
+                </ul>
+            </div>
         </div>
-
-        <button onclick="testSimpleCSRF()">
-            Test Simple CSRF Cookie Setting
-        </button>
-        <div id="simple-test-result"></div>
-
-        <h2>CSRF Token Usage for JavaScript</h2>
-        <p>For web clients, here's how to handle CSRF tokens:</p>
-
-        <script>
-            // Example: How to get and use CSRF tokens in JavaScript
-
-            // Function to get CSRF token from cookies
-            function getCSRFToken() {
-                const cookies = document.cookie.split(";");
-                for (let cookie of cookies) {
-                    const [name, value] = cookie.trim().split("=");
-                    if (name === "csrftoken") {
-                        return value;
-                    }
-                }
-                return null;
-            }
-
-            // Function to get CSRF token from API
-            async function fetchCSRFToken() {
-                try {
-                    const response = await fetch("/api/auth/csrf-token", {
-                        method: "GET",
-                        credentials: "include", // Important for cookies
-                    });
-                    const data = await response.json();
-                    return data.data.csrfToken;
-                } catch (error) {
-                    console.error("Failed to fetch CSRF token:", error);
-                    return null;
-                }
-            }
-
-            // Function to get debug information
-            async function fetchDebugInfo() {
-                try {
-                    const response = await fetch("/api/auth/debug", {
-                        method: "GET",
-                        credentials: "include",
-                    });
-                    const data = await response.json();
-                    return data.data;
-                } catch (error) {
-                    console.error("Failed to fetch debug info:", error);
-                    return null;
-                }
-            }
-
-            // Function to make authenticated requests with CSRF token
-            async function makeAuthenticatedRequest(url, options = {}) {
-                let csrfToken = getCSRFToken();
-
-                // If no token in cookies, fetch one
-                if (!csrfToken) {
-                    csrfToken = await fetchCSRFToken();
-                }
-
-                const headers = {
-                    "Content-Type": "application/json",
-                    "X-CSRF-Token": csrfToken, // Include CSRF token in header
-                    ...options.headers,
-                };
-
-                return fetch(url, {
-                    ...options,
-                    headers,
-                    credentials: "include", // Include cookies
-                });
-            }
-
-            // Auto-load debug information
-            async function loadDebugInfo() {
-                const debugInfo = await fetchDebugInfo();
-                const debugDiv = document.getElementById("debug-info");
-
-                if (debugInfo) {
-                    debugDiv.innerHTML = `
-                        <h3>Debug Information</h3>
-                        <p><strong>Is Web Client:</strong> ${
-                            debugInfo.is_web_client
-                        }</p>
-                        <p><strong>CSRF Token Generated:</strong> ${
-                            debugInfo.csrf_token_generated
-                                ? debugInfo.csrf_token_generated.substring(
-                                      0,
-                                      10
-                                  ) + "..."
-                                : "None"
-                        }</p>
-                        <p><strong>User Agent:</strong> ${
-                            debugInfo.request_info.user_agent
-                        }</p>
-                        <p><strong>Origin:</strong> ${
-                            debugInfo.request_info.origin
-                        }</p>
-                        <p><strong>Current URL:</strong> ${
-                            window.location.href
-                        }</p>
-                        <p><strong>Is Cross-Origin:</strong> ${
-                            window.location.origin !==
-                            "https://socialapi-backend.onrender.com"
-                        }</p>
-                        <h4>Cookie Settings:</h4>
-                        <ul>
-                            <li><strong>CSRF_COOKIE_SECURE:</strong> ${
-                                debugInfo.cookie_settings.CSRF_COOKIE_SECURE
-                            }</li>
-                            <li><strong>CSRF_COOKIE_HTTPONLY:</strong> ${
-                                debugInfo.cookie_settings.CSRF_COOKIE_HTTPONLY
-                            }</li>
-                            <li><strong>CSRF_COOKIE_SAMESITE:</strong> ${
-                                debugInfo.cookie_settings.CSRF_COOKIE_SAMESITE
-                            }</li>
-                            <li><strong>CSRF_COOKIE_DOMAIN:</strong> ${
-                                debugInfo.cookie_settings.CSRF_COOKIE_DOMAIN ||
-                                "None"
-                            }</li>
-                            <li><strong>CSRF_COOKIE_PATH:</strong> ${
-                                debugInfo.cookie_settings.CSRF_COOKIE_PATH
-                            }</li>
-                            <li><strong>IS_PRODUCTION:</strong> ${
-                                debugInfo.cookie_settings.IS_PRODUCTION
-                            }</li>
-                        </ul>
-                        <h4>Current Cookies:</h4>
-                        <pre>${JSON.stringify(
-                            debugInfo.current_cookies,
-                            null,
-                            2
-                        )}</pre>
-                        <h4>Browser Info:</h4>
-                        <ul>
-                            <li><strong>Navigator User Agent:</strong> ${
-                                navigator.userAgent
-                            }</li>
-                            <li><strong>Document Cookie:</strong> ${
-                                document.cookie || "Empty"
-                            }</li>
-                        </ul>
-                    `;
-                } else {
-                    debugDiv.innerHTML =
-                        "<p>Failed to load debug information</p>";
-                }
-
-                // Check cookies after debug call
-                setTimeout(() => {
-                    console.log("CSRF Token Helper functions loaded");
-                    console.log("Current CSRF token:", getCSRFToken());
-                    console.log("All cookies:", document.cookie);
-                }, 1000);
-            }
-
-            // Load debug info when page loads
-            window.addEventListener("load", loadDebugInfo);
-
-            // Test simple CSRF endpoint
-            async function testSimpleCSRF() {
-                const resultDiv = document.getElementById("simple-test-result");
-                resultDiv.innerHTML =
-                    "<p>Testing simple CSRF cookie setting...</p>";
-
-                try {
-                    const response = await fetch("/api/auth/csrf-test", {
-                        method: "GET",
-                        credentials: "include",
-                    });
-                    const data = await response.json();
-
-                    // Wait a moment for cookies to be set
-                    setTimeout(() => {
-                        const csrfToken = getCSRFToken();
-                        const allCookies = document.cookie;
-
-                        resultDiv.innerHTML = `
-                            <h3>Simple CSRF Test Result</h3>
-                            <p><strong>Response:</strong> ${data.message}</p>
-                            <p><strong>Is Cross-Origin:</strong> ${
-                                data.data.isCrossOrigin
-                            }</p>
-                            <p><strong>Is Web Client:</strong> ${
-                                data.data.isWebClient
-                            }</p>
-                            <p><strong>Origin:</strong> ${
-                                data.data.origin || "None"
-                            }</p>
-                            <p><strong>Token from response:</strong> ${
-                                data.data.csrfToken
-                                    ? data.data.csrfToken.substring(0, 10) +
-                                      "..."
-                                    : "None"
-                            }</p>
-                            <p><strong>Token from cookie:</strong> ${
-                                csrfToken || "None"
-                            }</p>
-                            <p><strong>All cookies:</strong> ${
-                                allCookies || "None"
-                            }</p>
-                            <p><strong>Cookie settings used:</strong></p>
-                            <pre>${JSON.stringify(
-                                data.data.settings,
-                                null,
-                                2
-                            )}</pre>
-                            <p><strong>Production settings:</strong></p>
-                            <pre>${JSON.stringify(
-                                data.data.productionSettings,
-                                null,
-                                2
-                            )}</pre>
-                        `;
-                    }, 500);
-                } catch (error) {
-                    resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
-                }
-            }
-        </script>
     </body>
 </html>

@@ -1,15 +1,13 @@
 from django.urls import path, include
 from .views import (
     RegisterView, LoginView, TokenRefreshView, 
-    TokenVerifyView, LogoutView, MeView, UserProfileView, GetCSRFTokenView, DebugSettingsView, SimpleCSRFTestView
+    TokenVerifyView, LogoutView, MeView, UserProfileView, CSRFTokenView
 )
 
 app_name = 'users'
 
 auth_patterns = [
-    path('csrf-token', GetCSRFTokenView.as_view(), name='get_csrf_token'),
-    path('debug', DebugSettingsView.as_view(), name='debug_settings'),
-    path('csrf-test', SimpleCSRFTestView.as_view(), name='csrf_test'),
+    path('csrf-token', CSRFTokenView.as_view(), name='csrf_token'),
     path('register', RegisterView.as_view(), name='register'),
     path('login', LoginView.as_view(), name='login'),
     path('logout', LogoutView.as_view(), name='logout'),

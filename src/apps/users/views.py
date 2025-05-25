@@ -193,13 +193,55 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
+            # Try to blacklist the refresh token if available
+            refresh_token = None
+            is_web = is_web_client(request)
+            
+            if is_web:
+                refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'])
+            else:
+                refresh_token = request.data.get('refresh')
+            
+            if refresh_token:
+                try:
+                    token = RefreshToken(refresh_token)
+                    token.blacklist()
+                    logger.info("Refresh token blacklisted successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to blacklist refresh token: {str(e)}")
+            
             response = success_response('Logged out successfully')
-            # Clear all auth and CSRF cookies
-            response.delete_cookie(settings.SIMPLE_JWT['COOKIE_NAME'], path=settings.COOKIE_SETTINGS['path'])
-            response.delete_cookie(settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'], path=settings.COOKIE_SETTINGS['path'])
-            response.delete_cookie('csrftoken', path=settings.COOKIE_SETTINGS['path'])
+            
+            # For cross-origin scenarios, we need to delete cookies with the same settings they were set with
+            # Clear JWT cookies with proper settings
+            response.delete_cookie(
+                settings.SIMPLE_JWT['COOKIE_NAME'],
+                path=settings.COOKIE_SETTINGS['path'],
+                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
+            )
+            response.delete_cookie(
+                settings.SIMPLE_JWT['COOKIE_REFRESH_NAME'],
+                path=settings.COOKIE_SETTINGS['path'],
+                secure=settings.SIMPLE_JWT['COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['COOKIE_SAMESITE'],
+                domain=settings.SIMPLE_JWT['COOKIE_DOMAIN']
+            )
+            
+            # Clear CSRF cookie with CSRF-specific settings
+            response.delete_cookie(
+                'csrftoken',
+                path=settings.CSRF_COOKIE_PATH,
+                secure=settings.CSRF_COOKIE_SECURE,
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                domain=settings.CSRF_COOKIE_DOMAIN
+            )
+            
+            logger.info("Logout: Successfully cleared all authentication and CSRF cookies")
             return response
         except Exception as e:
+            logger.error(f"Logout error: {str(e)}")
             return error_response('Logout failed', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @method_decorator(conditional_csrf_protect, name='dispatch')
@@ -374,91 +416,22 @@ class UserProfileView(APIView):
 
 class CSRFTokenView(APIView):
     """
-    Endpoint to provide CSRF tokens for web clients
+    Endpoint to get CSRF token for authenticated requests
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
         if is_web_client(request):
-            csrf_token = get_token(request)
-            response = success_response('CSRF token generated', {'csrfToken': csrf_token})
+            csrf_token = get_csrf_token_for_js(request)
+            response = success_response('CSRF token retrieved', {'csrfToken': csrf_token})
+            
+            # Set CSRF token in cookie
             response.set_cookie(
                 'csrftoken',
                 csrf_token,
                 max_age=3600 * 24 * 7,  # 7 days
                 secure=settings.CSRF_COOKIE_SECURE,
                 httponly=settings.CSRF_COOKIE_HTTPONLY,
-                samesite=settings.CSRF_COOKIE_SAMESITE,
-                domain=settings.CSRF_COOKIE_DOMAIN,
-                path=settings.CSRF_COOKIE_PATH
-            )
-            logger.info(f"CSRF token set for web client: {csrf_token[:10]}...")
-            return response
-        else:
-            return success_response('CSRF token not required for API clients', {'csrfToken': None})
-
-class CookieDebugView(APIView):
-    """
-    Debug endpoint to check cookie status
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        cookies = dict(request.COOKIES)
-        headers = dict(request.headers)
-        
-        debug_info = {
-            'is_web_client': is_web_client(request),
-            'cookies': cookies,
-            'origin': headers.get('Origin', 'None'),
-            'user_agent': headers.get('User-Agent', 'None'),
-            'csrf_token_header': headers.get('X-Csrftoken', 'None'),
-            'settings': {
-                'csrf_secure': settings.CSRF_COOKIE_SECURE,
-                'csrf_samesite': settings.CSRF_COOKIE_SAMESITE,
-                'csrf_domain': settings.CSRF_COOKIE_DOMAIN,
-                'jwt_secure': settings.SIMPLE_JWT['COOKIE_SECURE'],
-                'jwt_samesite': settings.SIMPLE_JWT['COOKIE_SAMESITE'],
-                'jwt_domain': settings.SIMPLE_JWT['COOKIE_DOMAIN'],
-            }
-        }
-        
-        return success_response('Cookie debug info', debug_info)
-
-class GetCSRFTokenView(APIView):
-    """
-    Simple endpoint to get CSRF token for JavaScript access
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        logger.info(f"GetCSRFTokenView: Request from {request.headers.get('User-Agent', 'Unknown')}")
-        logger.info(f"GetCSRFTokenView: Origin: {request.headers.get('Origin', 'None')}")
-        logger.info(f"GetCSRFTokenView: Referer: {request.headers.get('Referer', 'None')}")
-        
-        is_web = is_web_client(request)
-        logger.info(f"GetCSRFTokenView: Is web client: {is_web}")
-        
-        if is_web:
-            csrf_token = get_csrf_token_for_js(request)
-            logger.info(f"GetCSRFTokenView: Generated CSRF token: {csrf_token[:10]}...")
-            
-            response = success_response('CSRF token retrieved', {'csrfToken': csrf_token})
-            
-            # Check if this is a cross-origin request
-            origin = request.headers.get('Origin', '')
-            is_cross_origin = origin and ('netlify' in origin or 'localhost' not in origin)
-            
-            # Set CSRF token in cookie for automatic inclusion in future requests
-            logger.info(f"GetCSRFTokenView: Setting cookie for {'cross-origin' if is_cross_origin else 'same-origin'} request")
-            logger.info(f"GetCSRFTokenView: Using settings - secure: {settings.CSRF_COOKIE_SECURE}, httponly: {settings.CSRF_COOKIE_HTTPONLY}, samesite: {settings.CSRF_COOKIE_SAMESITE}")
-            
-            response.set_cookie(
-                'csrftoken',
-                csrf_token,
-                max_age=3600 * 24 * 7,  # 7 days
-                secure=settings.CSRF_COOKIE_SECURE,
-                httponly=settings.CSRF_COOKIE_HTTPONLY,  # False for JS access
                 samesite=settings.CSRF_COOKIE_SAMESITE,
                 domain=settings.CSRF_COOKIE_DOMAIN,
                 path=settings.CSRF_COOKIE_PATH
@@ -467,155 +440,7 @@ class GetCSRFTokenView(APIView):
             # Also include in response header
             response['X-CSRFToken'] = csrf_token
             
-            logger.info(f"GetCSRFTokenView: CSRF token provided to web client: {csrf_token[:10]}...")
-            logger.info(f"GetCSRFTokenView: Cookie set with httponly={settings.CSRF_COOKIE_HTTPONLY}")
+            logger.info(f"CSRF token provided to web client: {csrf_token[:10]}...")
             return response
         else:
-            logger.info(f"GetCSRFTokenView: Non-web client detected, not setting CSRF token")
             return success_response('CSRF token not required for API clients', {'csrfToken': None})
-
-class DebugSettingsView(APIView):
-    """
-    Debug view to check current settings and CSRF token generation
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        from django.middleware.csrf import get_token
-        
-        # Force generate CSRF token
-        csrf_token = get_token(request)
-        
-        debug_info = {
-            'is_web_client': is_web_client(request),
-            'csrf_token_generated': csrf_token,
-            'request_info': {
-                'user_agent': request.headers.get('User-Agent', 'None'),
-                'origin': request.headers.get('Origin', 'None'),
-                'path': request.path,
-                'method': request.method,
-            },
-            'cookie_settings': {
-                'CSRF_COOKIE_SECURE': settings.CSRF_COOKIE_SECURE,
-                'CSRF_COOKIE_HTTPONLY': settings.CSRF_COOKIE_HTTPONLY,
-                'CSRF_COOKIE_SAMESITE': settings.CSRF_COOKIE_SAMESITE,
-                'CSRF_COOKIE_DOMAIN': settings.CSRF_COOKIE_DOMAIN,
-                'CSRF_COOKIE_PATH': settings.CSRF_COOKIE_PATH,
-                'IS_PRODUCTION': settings.IS_PRODUCTION if hasattr(settings, 'IS_PRODUCTION') else 'Not set',
-            },
-            'current_cookies': dict(request.COOKIES),
-        }
-        
-        response = success_response('Debug info retrieved', debug_info)
-        
-        # Manually set CSRF cookie to test
-        if is_web_client(request):
-            logger.info(f"DebugSettingsView: Manually setting CSRF cookie")
-            response.set_cookie(
-                'csrftoken',
-                csrf_token,
-                max_age=3600 * 24 * 7,
-                secure=settings.CSRF_COOKIE_SECURE,
-                httponly=settings.CSRF_COOKIE_HTTPONLY,
-                samesite=settings.CSRF_COOKIE_SAMESITE,
-                domain=settings.CSRF_COOKIE_DOMAIN,
-                path=settings.CSRF_COOKIE_PATH
-            )
-            response['X-CSRFToken'] = csrf_token
-            logger.info(f"DebugSettingsView: CSRF cookie set manually")
-        
-        return response
-
-class SimpleCSRFTestView(APIView):
-    """
-    Simple test view to directly set CSRF cookie
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        from django.middleware.csrf import get_token
-        from django.http import JsonResponse
-        
-        # Generate CSRF token
-        csrf_token = get_token(request)
-        
-        # Check if this is a cross-origin request
-        origin = request.headers.get('Origin', '')
-        is_cross_origin = origin and 'netlify' in origin
-        
-        # Create a simple JSON response
-        response_data = {
-            'status': 'success',
-            'message': 'Simple CSRF test',
-            'data': {
-                'csrfToken': csrf_token,
-                'cookieWillBeSet': True,
-                'isCrossOrigin': is_cross_origin,
-                'origin': origin,
-                'isWebClient': is_web_client(request),
-                'settings': {
-                    'secure': settings.CSRF_COOKIE_SECURE,
-                    'httponly': settings.CSRF_COOKIE_HTTPONLY,
-                    'samesite': settings.CSRF_COOKIE_SAMESITE,
-                    'domain': settings.CSRF_COOKIE_DOMAIN,
-                    'path': settings.CSRF_COOKIE_PATH,
-                },
-                'productionSettings': {
-                    'IS_PRODUCTION': getattr(settings, 'IS_PRODUCTION', False),
-                    'secure': True,
-                    'httponly': False,
-                    'samesite': 'None',
-                    'domain': None,
-                    'path': '/'
-                }
-            }
-        }
-        
-        # Use Django's JsonResponse directly
-        response = JsonResponse(response_data)
-        
-        # Set CSRF cookie with production settings for cross-origin
-        if is_cross_origin:
-            # Use production-like settings for cross-origin
-            response.set_cookie(
-                'csrftoken',
-                csrf_token,
-                max_age=3600 * 24 * 7,
-                secure=True,  # Required for SameSite=None
-                httponly=False,  # Required for JS access
-                samesite='None',  # Required for cross-origin
-                domain=None,  # Don't set domain
-                path='/'
-            )
-            logger.info(f"SimpleCSRFTestView: Set cross-origin CSRF token with secure=True, samesite=None")
-        else:
-            # Use development settings for same-origin
-            response.set_cookie(
-                'csrftoken',
-                csrf_token,
-                max_age=3600 * 24 * 7,
-                secure=False,  # OK for development
-                httponly=False,  # Required for JS access
-                samesite='Lax',  # OK for same-origin
-                domain=None,
-                path='/'
-            )
-            logger.info(f"SimpleCSRFTestView: Set same-origin CSRF token with secure=False, samesite=Lax")
-        
-        # Also set a test cookie with same settings
-        response.set_cookie(
-            'test_cookie',
-            'test_value',
-            max_age=3600,
-            secure=True if is_cross_origin else False,
-            httponly=False,
-            samesite='None' if is_cross_origin else 'Lax',
-            domain=None,
-            path='/'
-        )
-        
-        response['X-CSRFToken'] = csrf_token
-        
-        logger.info(f"SimpleCSRFTestView: Set CSRF token {csrf_token[:10]}... for {'cross-origin' if is_cross_origin else 'same-origin'} request")
-        
-        return response
