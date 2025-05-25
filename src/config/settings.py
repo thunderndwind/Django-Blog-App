@@ -15,24 +15,64 @@ IS_PRODUCTION = os.getenv('DJANGO_PRODUCTION', 'False').lower() == 'true'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-default-key')
 DEBUG = not IS_PRODUCTION
 
-# Get deployment URLs
+# Core URLs and Domains
 RENDER_EXTERNAL_URL = os.getenv('RENDER_EXTERNAL_URL', '').rstrip('/')
 NETLIFY_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
-FRONTEND_URL = os.getenv('NETLIFY_URL', 'https://app.netlify.app').rstrip('/')
 DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '') if IS_PRODUCTION else 'localhost'
 
-ALLOWED_HOSTS = [
-    DOMAIN,
-]
+ALLOWED_HOSTS = [DOMAIN, 'localhost', '127.0.0.1']
 
 # Unified Cookie Settings
 COOKIE_SETTINGS = {
     'httponly': True,
     'secure': IS_PRODUCTION,
-    'samesite': 'None' if IS_PRODUCTION else 'Lax',  # Must be 'None' for cross-origin
+    'samesite': 'None' if IS_PRODUCTION else 'Lax',  # Must be 'None' for cross-origin in production
     'domain': DOMAIN if IS_PRODUCTION else None,
     'path': '/',
 }
+
+# Apply cookie settings consistently
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'COOKIE_NAME': 'access_token',
+    'COOKIE_REFRESH_NAME': 'refresh_token',
+    **COOKIE_SETTINGS  # Use unified cookie settings
+}
+
+# Session configuration
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+SESSION_COOKIE_SECURE = COOKIE_SETTINGS['secure']
+SESSION_COOKIE_HTTPONLY = COOKIE_SETTINGS['httponly']
+SESSION_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
+SESSION_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
+
+# CSRF configuration
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
+CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
+CSRF_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
+CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
+CSRF_USE_SESSIONS = False
+CSRF_TRUSTED_ORIGINS = [
+    NETLIFY_URL,
+    RENDER_EXTERNAL_URL,
+    'http://localhost:5173',
+    'http://localhost:3000',
+]
+
+# CORS configuration
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS  # Use same origins as CSRF
+CORS_EXPOSE_HEADERS = [
+    'Access-Control-Allow-Credentials',
+    'Access-Control-Allow-Origin',
+    'X-CSRFToken',
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -42,13 +82,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
+    # Third-party apps
     'rest_framework',
     'corsheaders',
-
+    'django_redis',
+    # Custom apps     
     'apps.users',
     'apps.posts',
-    'apps.uploads',  # Add this line
+    'apps.uploads',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +109,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],  # Add templates directory
+        'DIRS': [BASE_DIR / 'templates'],  # Templates directory
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -112,25 +153,6 @@ CACHES = {
     }
 }
 
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
-
-# JWT
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'COOKIE_NAME': 'access_token',
-    'COOKIE_REFRESH_NAME': 'refresh_token',
-    'COOKIE_SECURE': COOKIE_SETTINGS['secure'],
-    'COOKIE_HTTPONLY': COOKIE_SETTINGS['httponly'],
-    'COOKIE_SAMESITE': COOKIE_SETTINGS['samesite'],
-    'COOKIE_DOMAIN': COOKIE_SETTINGS['domain'],
-    'COOKIE_PATH': COOKIE_SETTINGS['path'],
-}
-
 # CSRF
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
@@ -140,55 +162,14 @@ CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
 CSRF_USE_SESSIONS = False
 CSRF_TRUSTED_ORIGINS = [
     NETLIFY_URL,
-    FRONTEND_URL,
+    RENDER_EXTERNAL_URL,
     'http://localhost:5173',
     'http://localhost:3000',
 ]
-
-# Session Settings
-SESSION_COOKIE_SECURE = COOKIE_SETTINGS['secure']
-SESSION_COOKIE_HTTPONLY = COOKIE_SETTINGS['httponly']
-SESSION_COOKIE_SAMESITE = COOKIE_SETTINGS['samesite']
-SESSION_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']
-
-# CORS Settings for cross-origin cookies
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    NETLIFY_URL,
-    FRONTEND_URL,
-    'http://localhost:5173',
-    'http://localhost:3000',
-]
-CORS_EXPOSE_HEADERS = [
-    'Access-Control-Allow-Credentials',
-    'Access-Control-Allow-Origin',
-    'X-CSRFToken',
-]
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
-# Cookie & Domain settings
-COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', 'localhost')
-SESSION_COOKIE_DOMAIN = DOMAIN if IS_PRODUCTION else None
-CSRF_COOKIE_DOMAIN = DOMAIN if IS_PRODUCTION else None
-SESSION_COOKIE_SECURE = IS_PRODUCTION
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Strict' 
 
 # Security Settings for Production
 if IS_PRODUCTION:
     SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_SECONDS = 31536000  # 1 year
