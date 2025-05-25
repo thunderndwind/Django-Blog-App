@@ -15,25 +15,13 @@ from apps.utils.responses import success_response, error_response
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from django.middleware.csrf import get_token, CsrfViewMiddleware
+from django.middleware.csrf import CsrfViewMiddleware
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect, csrf_exempt
 from apps.utils.web_detection import is_web_client
 from apps.utils.decorators import conditional_csrf_protect
-import re  # Add this import
+import re
 
 logger = logging.getLogger(__name__)
-
-class CSRFCheckMixin:
-    def validate_csrf(self, request):
-        # Get CSRF token from header
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            return False
-        
-        # Validate CSRF token
-        csrf_middleware = CsrfViewMiddleware()
-        return csrf_middleware._check_token(request, csrf_token)
 
 @method_decorator(conditional_csrf_protect, name='dispatch')
 class RegisterView(APIView):
@@ -69,7 +57,8 @@ class RegisterView(APIView):
                 status.HTTP_201_CREATED
             )
             
-            if 'Mozilla' in request.headers.get('User-Agent', '').lower():
+            # Set auth token for web clients
+            if is_web_client(request):
                 response.set_cookie(
                     settings.SIMPLE_JWT['COOKIE_NAME'],
                     str(refresh.access_token),
@@ -92,10 +81,8 @@ class RegisterView(APIView):
                 status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-@method_decorator(ensure_csrf_cookie, name='dispatch')
 @method_decorator(conditional_csrf_protect, name='dispatch')
-@method_decorator(csrf_exempt, name='dispatch')  # Allow non-web clients to bypass CSRF
-class LoginView(APIView, CSRFCheckMixin):
+class LoginView(APIView):
     permission_classes = [AllowAny]
     parser_classes = (JSONParser,)
 
@@ -129,19 +116,6 @@ class LoginView(APIView, CSRFCheckMixin):
 
                 if is_web_client(request):
                     response = success_response('Login successful', response_data)
-                    
-                    # Set CSRF token properly
-                    csrf_token = get_token(request)
-                    response.set_cookie(
-                        'csrftoken',
-                        csrf_token,
-                        max_age=3600 * 24 * 7,  # 7 days
-                        secure=settings.COOKIE_SETTINGS['secure'],
-                        samesite=settings.COOKIE_SETTINGS['samesite'],
-                        domain=settings.COOKIE_SETTINGS['domain'],
-                        path=settings.COOKIE_SETTINGS['path']
-                    )
-                    response['X-CSRFToken'] = csrf_token
                     
                     # Set auth tokens
                     response.set_cookie(
@@ -194,6 +168,7 @@ class LogoutView(APIView):
         except Exception as e:
             return error_response('Logout failed', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@method_decorator(conditional_csrf_protect, name='dispatch')
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -210,11 +185,12 @@ class MeView(APIView):
                 'bio': user.bio or '',
                 'birth_date': user.birth_date
             }
-            return success_response('User details retrieved successfully', data)
+            response = success_response('User details retrieved successfully', data)
+            return response
         except Exception as e:
             return error_response('Failed to retrieve user details', str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class TokenRefreshView(APIView, CSRFCheckMixin):
+class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):

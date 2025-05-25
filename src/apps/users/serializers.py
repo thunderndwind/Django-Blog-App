@@ -7,7 +7,6 @@ User = get_user_model()
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True)
-    profile_picture = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -18,9 +17,9 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
             'username': {'required': True},
-            'bio': {'required': False},
+            'bio': {'required': False, 'allow_blank': True},
             'birth_date': {'required': False},
-            'profile_picture': {'required': False},
+            'profile_picture': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
 
     def validate(self, data):
@@ -30,13 +29,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2', None)
-        profile_picture = validated_data.pop('profile_picture', None)
         user = User.objects.create_user(**validated_data)
-        if profile_picture:
-            user.profile_picture.save(
-                profile_picture.name,
-                profile_picture
-            )
         return user
 
     def to_representation(self, instance):

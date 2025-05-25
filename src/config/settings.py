@@ -3,7 +3,7 @@ import sys
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
-import dj_database_url  # Add this import
+import dj_database_url      
 
 load_dotenv()
 
@@ -14,6 +14,9 @@ IS_PRODUCTION = os.getenv('DJANGO_PRODUCTION', 'False').lower() == 'true'
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-default-key')
 DEBUG = not IS_PRODUCTION
+
+# Custom User Model
+AUTH_USER_MODEL = 'users.User'
 
 # Core URLs and Domains
 RENDER_EXTERNAL_URL = os.getenv('RENDER_EXTERNAL_URL', '').rstrip('/')
@@ -40,7 +43,9 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'COOKIE_NAME': 'access_token',
     'COOKIE_REFRESH_NAME': 'refresh_token',
-    **COOKIE_SETTINGS  # Use unified cookie settings
+    'COOKIE_SECURE': COOKIE_SETTINGS['secure'],
+    'COOKIE_HTTPONLY': COOKIE_SETTINGS['httponly'],
+    'COOKIE_SAMESITE': COOKIE_SETTINGS['samesite'],
 }
 
 # Session configuration
@@ -56,6 +61,8 @@ CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
 CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
 CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'  # Required for cross-origin
+CSRF_COOKIE_DOMAIN = COOKIE_SETTINGS['domain']  # Set domain for cookie
+CSRF_COOKIE_PATH = COOKIE_SETTINGS['path']  # Set path for cookie
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_USE_SESSIONS = False
 CSRF_FAILURE_VIEW = 'apps.utils.responses.csrf_failure'
@@ -75,6 +82,31 @@ CORS_EXPOSE_HEADERS = [
     'Access-Control-Allow-Origin',
     'X-CSRFToken',
 ]
+
+# REST Framework configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'apps.users.authentication.CustomJWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ],
+    'EXCEPTION_HANDLER': 'apps.utils.exceptions.custom_exception_handler',
+}
+
+# Uploadcare configuration
+UPLOADCARE = {
+    'pub_key': os.getenv('UPLOADCARE_PUBLIC_KEY'),
+    'secret': os.getenv('UPLOADCARE_SECRET_KEY'),
+    'cdn_base': 'https://ucarecdn.com',
+}
 
 # Application definition
 INSTALLED_APPS = [
@@ -104,6 +136,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.utils.security.AutoCSRFMiddleware',  # Automatically attach CSRF tokens
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -154,24 +187,6 @@ CACHES = {
         }
     }
 }
-
-# CSRF
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_COOKIE_SECURE = COOKIE_SETTINGS['secure']
-CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
-CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'  # Required for cross-origin
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
-CSRF_USE_SESSIONS = False
-CSRF_FAILURE_VIEW = 'apps.utils.responses.csrf_failure'
-
-CSRF_TRUSTED_ORIGINS = [
-    NETLIFY_URL,
-    RENDER_EXTERNAL_URL,
-    'http://localhost:5173',
-    'http://localhost:3000',
-]
-
-
 
 CORS_ALLOW_HEADERS = [
     'accept',
